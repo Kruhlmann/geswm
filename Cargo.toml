@@ -1,0 +1,21 @@
+[package]
+name = "geswm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+smithay = { version = "0.7", default-features = false, features = [
+    "backend_winit",
+    "renderer_gl",
+    "wayland_frontend",
+] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+wayland-server = "0.31"
+wayland-protocols = { version = "0.32", features = ["server"] }
+winit = { version = "0.30", features = [
+    "wayland",
+    "wayland-dlopen",
+    "x11",
+    "rwh_06",
+] }
+tracing = "0.1.44"
