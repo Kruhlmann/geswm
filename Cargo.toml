@@ -10,7 +10,7 @@ smithay = { version = "0.7", default-features = false, features = [
 ] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 wayland-server = "0.31"
-wayland-protocols = { version = "0.32", features = ["server"] }
+wayland-protocols = { version = "0.32", features = ["client", "server"] }
 winit = { version = "0.30", features = [
     "wayland",
     "wayland-dlopen",
@@ -19,3 +19,8 @@ winit = { version = "0.30", features = [
 ] }
 tracing = "0.1.44"
 thiserror = "2.0.18"
+smithay-client-toolkit = "0.19"
+wayland-client = "0.31"
+bitflags = "2.13.0"
+tempfile = "3.20"
+clap = { version = "4.6.1", features = ["derive"] }

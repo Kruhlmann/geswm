@@ -1,4 +1,4 @@
-use std::os::unix::io::OwnedFd;
+use std::{collections::HashMap, os::unix::io::OwnedFd};
 
 use smithay::{
     input::{Seat, SeatHandler, SeatState},
@@ -22,7 +22,11 @@ use smithay::{
 use wayland_protocols::xdg::shell::server::xdg_toplevel;
 use wayland_server::{Client, protocol::wl_surface::WlSurface};
 
-use crate::client::ClientState;
+use crate::{
+    backend::WindowGeometry,
+    client::ClientState,
+    server::{WaylandSocket, WaylandSocketInitError},
+};
 
 pub struct ServerState {
     pub compositor_state: CompositorState,
@@ -31,10 +35,16 @@ pub struct ServerState {
     pub seat_state: SeatState<Self>,
     pub data_device_state: DataDeviceState,
     pub seat: Seat<Self>,
+    pub socket: WaylandSocket,
+    pub geometries: HashMap<WlSurface, WindowGeometry>,
+    pub focused_surface: Option<WlSurface>,
+    pub layout_dirty: bool,
 }
 
 impl ServerState {
-    pub fn from_display(display: &wayland_server::Display<Self>) -> Self {
+    pub fn from_display(
+        display: &wayland_server::Display<Self>,
+    ) -> Result<Self, WaylandSocketInitError> {
         let display_handle = display.handle();
         let compositor_state = CompositorState::new::<Self>(&display_handle);
         let xdg_shell_state = XdgShellState::new::<Self>(&display_handle);
@@ -42,14 +52,46 @@ impl ServerState {
         let data_device_state = DataDeviceState::new::<Self>(&display_handle);
         let mut seat_state = SeatState::new();
         let seat = seat_state.new_wl_seat(&display_handle, "geswm");
-        Self {
+        let socket = WaylandSocket::try_autocreate()
+            .inspect(|s| tracing::info!("listening on socket {}", s.name))?;
+        Ok(Self {
             compositor_state,
             xdg_shell_state,
             shm_state,
             seat_state,
             data_device_state,
             seat,
-        }
+            socket,
+            geometries: HashMap::new(),
+            focused_surface: None,
+            layout_dirty: true,
+        })
+    }
+
+    pub fn socket_name(&self) -> &str {
+        self.socket.display_name()
+    }
+
+    pub fn geometry_for_surface(&self, surface: &WlSurface) -> Option<WindowGeometry> {
+        self.geometries.get(surface).copied()
+    }
+
+    pub fn set_geometry_for_surface(&mut self, surface: WlSurface, geometry: WindowGeometry) {
+        self.geometries.insert(surface, geometry);
+    }
+
+    pub fn is_focused(&self, surface: &WlSurface) -> bool {
+        self.focused_surface
+            .as_ref()
+            .is_some_and(|focused| focused == surface)
+    }
+
+    pub fn set_focused_surface(&mut self, surface: Option<WlSurface>) {
+        self.focused_surface = surface;
+    }
+
+    pub fn mark_layout_dirty(&mut self) {
+        self.layout_dirty = true;
     }
 }
 

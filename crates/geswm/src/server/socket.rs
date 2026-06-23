@@ -37,6 +37,10 @@ impl WaylandSocket {
         }
         Err(WaylandSocketInitError::NoAvailableSocket)
     }
+
+    pub fn display_name(&self) -> &str {
+        &self.name
+    }
 }
 
 impl std::ops::Deref for WaylandSocket {

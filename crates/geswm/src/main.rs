@@ -1,4 +1,9 @@
-use geswm::daemon::Daemon;
+use geswm::{
+    backend::WinitBackend,
+    daemon::{Daemon, bind::KeyBind},
+    layout::MasterStackLayout,
+};
+use smithay::input::keyboard::XkbConfig;
 use tracing_subscriber::EnvFilter;
 
 const DEFAULT_LOG_FILTER: &str = "info,backend_winit=warn,smithay=info,wayland_server=warn";
@@ -13,6 +18,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_env_filter(env_filter)
         .with_ansi_sanitization(false)
         .init();
-    let mut daemon = Daemon::new()?.add_keyboard(None, 200, 200)?;
+    let keyboard_config = XkbConfig {
+        rules: "evdev",
+        model: "pc105",
+        layout: "us",
+        variant: "altgr-intl",
+        options: None,
+    };
+    let backend = WinitBackend::new_gles_renderer()?;
+    let mut daemon = Daemon::new()?
+        .with_mouse()
+        .with_backend(backend)
+        .with_keyboard(Some(keyboard_config), 200, 200)?
+        .with_initial_layout(MasterStackLayout::default())
+        .bind_key(
+            KeyBind::new(36u32.into()).with_shift(),
+            vec!["alacritty"].into(),
+        );
     daemon.run();
 }
