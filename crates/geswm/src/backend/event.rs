@@ -36,7 +36,7 @@ impl From<smithay::backend::input::InputEvent<smithay::backend::winit::WinitInpu
         match event {
             smithay::backend::input::InputEvent::Keyboard { event } => InputEvent::Keyboard {
                 time: event.time(),
-                key: event.key_code().into(),
+                key: event.key_code(),
                 state: event.state(),
             },
             smithay::backend::input::InputEvent::PointerMotionAbsolute { event } => {

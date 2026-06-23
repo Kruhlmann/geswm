@@ -1,8 +1,19 @@
-use crate::server::WaylandSocket;
+use std::hint::unreachable_unchecked;
+
+#[derive(Debug)]
+pub enum LayoutCommand {
+    CycleUp,
+    CycleDown,
+    SendToTop,
+    SendToBottom,
+    SendUp,
+    SendDown,
+}
 
 #[derive(Debug)]
 pub enum UserCommand {
     Spawn(Vec<String>),
+    Layout(LayoutCommand),
 }
 
 impl From<Vec<&str>> for UserCommand {
@@ -42,6 +53,7 @@ impl UserCommand {
                     }
                 }
             }
+            _ => unreachable!("not implemented"),
         }
     }
 }

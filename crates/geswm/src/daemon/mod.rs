@@ -5,23 +5,14 @@ pub mod focus;
 pub mod keyboard;
 pub mod mouse;
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::Instant,
-};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
-use smithay::input::{
-    keyboard::{KeyboardHandle, XkbConfig},
-    pointer::PointerHandle,
-};
+use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
 use crate::{
-    backend::{
-        BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend, WindowGeometry,
-        WindowSize,
-    },
+    backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend, WindowSize},
     client::ClientState,
+    config::KeyboardConfiguration,
     daemon::{
         bind::KeyBind,
         command::UserCommand,
@@ -90,25 +81,15 @@ where
             .server_state
             .xdg_shell_state
             .toplevel_surfaces()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
+            .to_vec();
 
         let mut layout_windows = surfaces
             .iter()
-            .map(|surface| {
-                let current_geometry = self
+            .map(|surface| LayoutWindow {
+                geometry: self
                     .server_state
-                    .geometry_for_surface(surface.wl_surface())
-                    .unwrap_or_else(|| crate::backend::WindowGeometry {
-                        position: (0, 0).into(),
-                        size: (1, 1).into(),
-                    });
-
-                crate::layout::LayoutWindow {
-                    geometry: current_geometry,
-                    focused: self.server_state.is_focused(surface.wl_surface()),
-                }
+                    .geometry_for_surface_or_default(surface.wl_surface()),
+                focused: self.server_state.is_focused(surface.wl_surface()),
             })
             .collect::<Vec<_>>();
 
@@ -122,6 +103,18 @@ where
         for (surface, layout_window) in surfaces.iter().zip(layout_windows.into_iter()) {
             self.server_state
                 .set_geometry_for_surface(surface.wl_surface().clone(), layout_window.geometry);
+
+            let width = layout_window.geometry.size.w.max(1);
+            let height = layout_window.geometry.size.h.max(1);
+            let size = (width, height).into();
+
+            let size_changed = surface.with_pending_state(|state| {
+                state.size.replace(size).map(|old| old != size).unwrap_or(true)
+            });
+
+            if size_changed {
+                surface.send_configure();
+            }
         }
     }
 
@@ -228,30 +221,17 @@ impl<Keyboard, Backend, L> Daemon<Keyboard, NoMouse, Backend, L> {
 impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
     pub fn with_keyboard(
         mut self,
-        xkb_configuration: Option<XkbConfig>,
-        repeat_delay: i32,
-        repeat_rate: i32,
+        config: KeyboardConfiguration,
     ) -> Result<Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L>, DaemonKeyboardInitError>
     {
-        tracing::info!(
-            ?xkb_configuration,
-            ?repeat_delay,
-            ?repeat_rate,
-            "add keyboard"
-        );
+        tracing::info!("add keyboard");
 
-        let xkb = xkb_configuration.unwrap_or_default();
-        let xkb_str = format!("{xkb:?}");
-        let keyboard = self
-            .server_state
-            .seat
-            .add_keyboard(xkb, repeat_delay, repeat_rate)
-            .map_err(|e| match e {
-                smithay::input::keyboard::Error::BadKeymap => {
-                    DaemonKeyboardInitError::InvalidKeyMap(xkb_str)
-                }
-                smithay::input::keyboard::Error::IoError(e) => DaemonKeyboardInitError::Io(e),
-            })?;
+        let repeat_delay = config.repeat_delay;
+        let repeat_rate = config.repeat_rate;
+        let keyboard =
+            self.server_state
+                .seat
+                .add_keyboard(config.into(), repeat_delay, repeat_rate)?;
 
         Ok(Daemon {
             server_state: self.server_state,

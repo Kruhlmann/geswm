@@ -76,6 +76,16 @@ impl ServerState {
         self.geometries.get(surface).copied()
     }
 
+    pub fn geometry_for_surface_or_default(&self, surface: &WlSurface) -> WindowGeometry {
+        self.geometries
+            .get(surface)
+            .copied()
+            .unwrap_or_else(|| crate::backend::WindowGeometry {
+                position: (0, 0).into(),
+                size: (1, 1).into(),
+            })
+    }
+
     pub fn set_geometry_for_surface(&mut self, surface: WlSurface, geometry: WindowGeometry) {
         self.geometries.insert(surface, geometry);
     }

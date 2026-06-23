@@ -35,8 +35,17 @@ impl From<WaylandSocketInitError> for DaemonInitError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DaemonKeyboardInitError {
-    #[error("invalid xkb keymap {0}")]
-    InvalidKeyMap(String),
+    #[error("invalid xkb keymap")]
+    InvalidKeyMap,
     #[error("io error {0}")]
     Io(std::io::Error),
+}
+
+impl From<smithay::input::keyboard::Error> for DaemonKeyboardInitError {
+    fn from(value: smithay::input::keyboard::Error) -> Self {
+        match value {
+            smithay::input::keyboard::Error::BadKeymap => DaemonKeyboardInitError::InvalidKeyMap,
+            smithay::input::keyboard::Error::IoError(e) => DaemonKeyboardInitError::Io(e),
+        }
+    }
 }

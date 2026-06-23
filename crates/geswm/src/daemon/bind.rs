@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 
 use smithay::{backend::input::Keycode, input::keyboard::ModifiersState};
 
@@ -54,7 +53,7 @@ impl std::fmt::Display for KeyBind {
             modifiers.push("Super");
         }
         if modifiers.is_empty() {
-            return write!(f, "{:?}", self.key);
+            write!(f, "{:?}", self.key)
         } else {
             write!(f, "{}+{:?}", modifiers.join("+"), self.key)
         }
