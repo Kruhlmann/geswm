@@ -20,16 +20,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
     let keyboard_config = XkbConfig {
         rules: "evdev",
-        model: "pc105",
+        model: "pc104",
         layout: "us",
         variant: "altgr-intl",
-        options: None,
+        options: Some("caps:escape".to_string()),
     };
     let backend = WinitBackend::new_gles_renderer()?;
     let mut daemon = Daemon::new()?
         .with_mouse()
         .with_backend(backend)
-        .with_keyboard(Some(keyboard_config), 200, 200)?
+        .with_keyboard(Some(keyboard_config), 200, 20)?
         .with_initial_layout(MasterStackLayout::default())
         .bind_key(
             KeyBind::new(36u32.into()).with_shift(),
