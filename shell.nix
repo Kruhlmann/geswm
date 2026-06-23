@@ -16,7 +16,6 @@ pkgs.mkShell {
     pkgs.udev
     pkgs.wayland
     pkgs.wayland-protocols
-
     pkgs.xorg.libX11
     pkgs.xorg.libXcursor
     pkgs.xorg.libXi
@@ -32,7 +31,6 @@ pkgs.mkShell {
     pkgs.seatd
     pkgs.udev
     pkgs.wayland
-
     pkgs.xorg.libX11
     pkgs.xorg.libXcursor
     pkgs.xorg.libXi

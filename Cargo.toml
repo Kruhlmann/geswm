@@ -1,9 +1,8 @@
-[package]
-name = "geswm"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["crates/*"]
+resolver = "3"
 
-[dependencies]
+[workspace.dependencies]
 smithay = { version = "0.7", default-features = false, features = [
     "backend_winit",
     "renderer_gl",

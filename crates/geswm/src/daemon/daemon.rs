@@ -74,8 +74,11 @@ where
 
         for event in &event_queue {
             match event {
-                WinitEvent::Resized { size: _, scale_factor: _ } => todo!(),
-                WinitEvent::Focus(_) => todo!(),
+                WinitEvent::Resized {
+                    size: _,
+                    scale_factor: _,
+                } => tracing::info!("resized event"),
+                WinitEvent::Focus(_) => tracing::info!("focus event"),
                 WinitEvent::Input(input_event) => match input_event {
                     InputEvent::Keyboard { event } => self.on_keyboard_event(event),
                     _ => todo!(),
