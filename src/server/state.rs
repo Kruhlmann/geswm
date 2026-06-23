@@ -20,7 +20,7 @@ use smithay::{
     },
 };
 use wayland_protocols::xdg::shell::server::xdg_toplevel;
-use wayland_server::{Client, DisplayHandle, protocol::wl_surface::WlSurface};
+use wayland_server::{Client, protocol::wl_surface::WlSurface};
 
 use crate::client::ClientState;
 
@@ -34,13 +34,14 @@ pub struct ServerState {
 }
 
 impl ServerState {
-    pub fn from_display_handle(display_handle: &DisplayHandle) -> Self {
-        let compositor_state = CompositorState::new::<ServerState>(display_handle);
-        let xdg_shell_state = XdgShellState::new::<ServerState>(display_handle);
-        let shm_state = ShmState::new::<ServerState>(display_handle, vec![]);
-        let data_device_state = DataDeviceState::new::<ServerState>(display_handle);
+    pub fn from_display(display: &wayland_server::Display<Self>) -> Self {
+        let display_handle = display.handle();
+        let compositor_state = CompositorState::new::<Self>(&display_handle);
+        let xdg_shell_state = XdgShellState::new::<Self>(&display_handle);
+        let shm_state = ShmState::new::<Self>(&display_handle, vec![]);
+        let data_device_state = DataDeviceState::new::<Self>(&display_handle);
         let mut seat_state = SeatState::new();
-        let seat = seat_state.new_wl_seat(display_handle, "geswm");
+        let seat = seat_state.new_wl_seat(&display_handle, "geswm");
         Self {
             compositor_state,
             xdg_shell_state,
