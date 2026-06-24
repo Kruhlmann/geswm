@@ -52,8 +52,7 @@ impl ServerState {
         let data_device_state = DataDeviceState::new::<Self>(&display_handle);
         let mut seat_state = SeatState::new();
         let seat = seat_state.new_wl_seat(&display_handle, "geswm");
-        let socket = WaylandSocket::try_autocreate()
-            .inspect(|s| tracing::info!("listening on socket {}", s.name))?;
+        let socket = WaylandSocket::try_autocreate()?;
         Ok(Self {
             compositor_state,
             xdg_shell_state,

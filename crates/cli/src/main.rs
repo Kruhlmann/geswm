@@ -1,6 +1,7 @@
-#[derive(clap::Parser, Debug)]
-pub struct Args {}
+use clap::Parser;
+use cli::cli::Cli;
 
 fn main() {
-    println!("Hello, world!");
+    let cli = Cli::parse();
+    eprintln!("{cli:?}")
 }

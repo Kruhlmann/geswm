@@ -7,11 +7,7 @@ pub struct ClientState {
 }
 
 impl wayland_server::backend::ClientData for ClientState {
-    fn initialized(&self, client_id: ClientId) {
-        tracing::info!(?client_id, "client connected");
-    }
+    fn initialized(&self, _client_id: ClientId) {}
 
-    fn disconnected(&self, _client_id: ClientId, reason: DisconnectReason) {
-        tracing::warn!("client disconnected: {reason:?}");
-    }
+    fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
 }

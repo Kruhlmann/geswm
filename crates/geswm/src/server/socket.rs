@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use wayland_server::{BindError, ListeningSocket};
 
 const SOCKET_PREFIX: &str = "geswm";
@@ -19,20 +21,22 @@ pub struct WaylandSocket {
 impl WaylandSocket {
     pub fn try_autocreate() -> Result<WaylandSocket, WaylandSocketInitError> {
         for i in 1..MAX_SOCKET_INDEX {
-            let socket_name = format!("{SOCKET_PREFIX}-{i}");
-            match ListeningSocket::bind(&socket_name) {
+            let name = format!("{SOCKET_PREFIX}-{i}");
+            match ListeningSocket::bind(&name) {
                 Ok(socket) => {
-                    return Ok(Self {
-                        socket,
-                        name: socket_name,
-                    });
+                    let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR")
+                        .ok_or(WaylandSocketInitError::RuntimeDirNotSet)
+                        .map(PathBuf::from)?;
+                    let path = runtime_dir.join(&name);
+                    tracing::info!(?path, "opened socket");
+                    return Ok(Self { socket, name });
                 }
                 Err(BindError::RuntimeDirNotSet) => {
                     return Err(WaylandSocketInitError::RuntimeDirNotSet);
                 }
                 Err(BindError::PermissionDenied) => tracing::warn!("permission denied"),
                 Err(BindError::Io(error)) => tracing::warn!(?error, "io error on socket bind"),
-                Err(BindError::AlreadyInUse) => tracing::warn!(?socket_name, "socket in use"),
+                Err(BindError::AlreadyInUse) => tracing::warn!(?name, "socket in use"),
             };
         }
         Err(WaylandSocketInitError::NoAvailableSocket)

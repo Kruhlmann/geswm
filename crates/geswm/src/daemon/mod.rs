@@ -1,5 +1,3 @@
-pub mod bind;
-pub mod command;
 pub mod error;
 pub mod focus;
 pub mod keyboard;
@@ -12,24 +10,29 @@ use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 use crate::{
     backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend, WindowSize},
     client::ClientState,
+    cmd::{
+        UserCommand,
+        executor::{DaemonCommandExecutor, UserCommandExecutor},
+    },
     config::KeyboardConfiguration,
     daemon::{
-        bind::KeyBind,
-        command::UserCommand,
         error::{DaemonInitError, DaemonKeyboardInitError},
         focus::FocusHandler,
         keyboard::{KeyboardHandler, NoKeyboard},
         mouse::{MouseHandler, NoMouse},
     },
+    input::{KeyBind, UnixSocket},
     layout::{Layout, LayoutWindow, NoLayout},
     server::ServerState,
 };
 
 pub struct Daemon<Keyboard, Mouse, Backend, L> {
     server_state: ServerState,
+    comms_socket: UnixSocket,
     display: wayland_server::Display<ServerState>,
     epoch: Instant,
     clients: Vec<wayland_server::Client>,
+    executor: DaemonCommandExecutor,
     backend: Box<Backend>,
     keyboard: Keyboard,
     mouse: Mouse,
@@ -41,12 +44,16 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
     pub fn new() -> Result<Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout>, DaemonInitError> {
         let display: wayland_server::Display<ServerState> = wayland_server::Display::new()?;
         let server_state = ServerState::from_display(&display)?;
+        let executor = DaemonCommandExecutor::new(server_state.socket_name().to_string());
+        let comms_socket = UnixSocket::try_autocreate("geswm")?;
 
         Ok(Self {
             server_state,
+            comms_socket,
             display,
             epoch: Instant::now(),
             clients: vec![],
+            executor,
             backend: Box::new(()),
             keyboard: (),
             mouse: (),
@@ -109,7 +116,11 @@ where
             let size = (width, height).into();
 
             let size_changed = surface.with_pending_state(|state| {
-                state.size.replace(size).map(|old| old != size).unwrap_or(true)
+                state
+                    .size
+                    .replace(size)
+                    .map(|old| old != size)
+                    .unwrap_or(true)
             });
 
             if size_changed {
@@ -127,17 +138,19 @@ where
             BackendPumpStatus::Continue => {}
             BackendPumpStatus::Exit(exit_code) => {
                 tracing::info!(?exit_code, "event loop exited");
-                std::process::exit(0);
+                std::process::exit(0); // TODO
             }
         };
 
+        let mut commands: Vec<Option<UserCommand>> = Vec::new();
         for event in &event_queue {
-            match event {
+            let command = match event {
                 BackendEvent::Resize { size, scale } => {
-                    tracing::info!("resized event: {size:?} scale: {scale:?}")
+                    tracing::info!("resized event: {size:?} scale: {scale:?}");
+                    None
                 }
-                BackendEvent::FocusGained => tracing::info!("focus on"),
-                BackendEvent::FocusLost => tracing::info!("focus off"),
+                BackendEvent::FocusGained => None,
+                BackendEvent::FocusLost => None,
                 BackendEvent::Input(input_event) => match input_event {
                     InputEvent::Keyboard { time, key, state } => {
                         self.on_keyboard_event(*time, key, state)
@@ -151,14 +164,25 @@ where
                     InputEvent::PointerMotionAbsolute { time, x, y } => {
                         self.on_mouse_moved_event(time, x, y)
                     }
-                    InputEvent::Unimplemented => {}
+                    InputEvent::Unimplemented => None,
                 },
+                BackendEvent::Redraw => {
+                    tracing::info!("redraw event");
+                    None
+                }
                 BackendEvent::CloseRequested => {
                     tracing::info!("close requested");
-                    std::process::exit(0);
+                    std::process::exit(0); // TODO: clean up
                 }
-                BackendEvent::Redraw => tracing::info!("redraw event"),
-            }
+            };
+            commands.push(command);
+        }
+
+        for command in commands.into_iter().flatten() {
+            self.executor
+                .execute(&command)
+                .inspect_err(|error| tracing::error!(?error, ?command, "user cmd execution"))
+                .ok();
         }
     }
 
@@ -188,10 +212,12 @@ impl<Keyboard, Mouse, L> Daemon<Keyboard, Mouse, NoBackend, L> {
     {
         Daemon {
             server_state: self.server_state,
+            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,
             keyboard: self.keyboard,
+            executor: self.executor,
             mouse: self.mouse,
             layout: self.layout,
             keybinds: self.keybinds,
@@ -206,10 +232,12 @@ impl<Keyboard, Backend, L> Daemon<Keyboard, NoMouse, Backend, L> {
         let mouse = self.server_state.seat.add_pointer();
         Daemon {
             server_state: self.server_state,
+            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,
             keyboard: self.keyboard,
+            executor: self.executor,
             backend: self.backend,
             layout: self.layout,
             keybinds: self.keybinds,
@@ -235,6 +263,7 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
 
         Ok(Daemon {
             server_state: self.server_state,
+            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,
@@ -242,6 +271,7 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
             backend: self.backend,
             layout: self.layout,
             keybinds: self.keybinds,
+            executor: self.executor,
             keyboard,
         })
     }
@@ -254,10 +284,12 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
     {
         Daemon {
             server_state: self.server_state,
+            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,
             keyboard: self.keyboard,
+            executor: self.executor,
             mouse: self.mouse,
             backend: self.backend,
             keybinds: self.keybinds,
@@ -272,13 +304,10 @@ impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
         keybind: KeyBind,
         command: UserCommand,
     ) -> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
-        if let std::collections::hash_map::Entry::Occupied(entry) = self.keybinds.entry(keybind) {
-            tracing::warn!(
-                "keybind {keybind} already exists, overwriting: {:?}",
-                entry.get()
-            );
+        if let std::collections::hash_map::Entry::Occupied(..) = self.keybinds.entry(keybind) {
+            tracing::warn!("redefining {keybind}: {command}");
         } else {
-            tracing::info!("binding keybind {keybind} to command: {command:?}");
+            tracing::info!("binding {keybind} to command: {command}");
         }
         self.keybinds.insert(keybind, command);
         self

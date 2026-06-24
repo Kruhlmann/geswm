@@ -1,8 +1,6 @@
 use geswm::{
-    backend::WinitBackend,
-    config::KeyboardConfiguration,
-    daemon::{Daemon, bind::KeyBind},
-    layout::MasterStackLayout,
+    backend::WinitBackend, cmd::UserCommand, config::KeyboardConfiguration, daemon::Daemon,
+    input::XkbKeyCode, layout::MasterStackLayout,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -33,9 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_backend(backend)
         .with_keyboard(keyboard_config)?
         .with_initial_layout(MasterStackLayout::default())
-        .bind_key(
-            KeyBind::new(36u32.into()).with_shift(),
-            vec!["alacritty"].into(),
-        );
+        .bind_key(XkbKeyCode::Return.with_shift(), vec!["alacritty"].into())
+        .bind_key(XkbKeyCode::T.with_shift(), UserCommand::CloseFocused);
     daemon.run();
 }
