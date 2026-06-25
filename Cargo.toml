@@ -7,12 +7,8 @@ edition = "2024"
 default = ["winit"]
 winit = ["dep:winit", "smithay/backend_winit", "smithay/renderer_gl"]
 
-[lib]
-path = "crates/geswm/src/lib.rs"
-
 [[example]]
 name = "simple-wm"
-path = "crates/geswm/examples/simple-wm.rs"
 required-features = ["winit"]
 
 [profile.dev]
