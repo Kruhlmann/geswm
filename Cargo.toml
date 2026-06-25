@@ -1,7 +1,12 @@
 [package]
 name = "geswm"
+description = "A wayland compositor just for me"
+documentation = ""
+homepage = ""
+repository = "https://github.com/Kruhlmann/geswm"
 version = "0.1.0"
 edition = "2024"
+license-file = "LICENSE"
 
 [features]
 default = ["winit"]
