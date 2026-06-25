@@ -2,18 +2,18 @@ pub mod master_stack;
 
 pub use master_stack::*;
 
-use crate::backend::{WindowGeometry, WindowSize};
+use crate::surface::{SurfaceGeometry, SurfaceLogicalSize};
 
 pub type NoLayout = ();
 
 pub struct LayoutContext<'a> {
-    pub output_size: WindowSize,
+    pub output_size: SurfaceLogicalSize,
     pub windows: &'a mut [LayoutWindow],
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct LayoutWindow {
-    pub geometry: WindowGeometry,
+    pub geometry: SurfaceGeometry,
     pub focused: bool,
 }
 

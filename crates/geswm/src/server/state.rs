@@ -1,42 +1,31 @@
-use std::{collections::HashMap, os::unix::io::OwnedFd};
+use std::collections::HashMap;
 
 use smithay::{
-    input::{Seat, SeatHandler, SeatState},
-    reexports::wayland_server::protocol::wl_seat,
-    utils::Serial,
+    input::{Seat, SeatState},
     wayland::{
-        buffer::BufferHandler,
-        compositor::{CompositorClientState, CompositorHandler, CompositorState},
-        selection::{
-            SelectionHandler,
-            data_device::{
-                ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
-            },
-        },
-        shell::xdg::{
-            PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
-        },
-        shm::{ShmHandler, ShmState},
+        compositor::CompositorState,
+        selection::data_device::DataDeviceState,
+        shell::xdg::{XdgShellState, decoration::XdgDecorationState},
+        shm::ShmState,
     },
 };
-use wayland_protocols::xdg::shell::server::xdg_toplevel;
-use wayland_server::{Client, protocol::wl_surface::WlSurface};
+use wayland_server::protocol::wl_surface::WlSurface;
 
 use crate::{
-    backend::WindowGeometry,
-    client::ClientState,
     server::{WaylandSocket, WaylandSocketInitError},
+    surface::SurfaceGeometry,
 };
 
 pub struct ServerState {
     pub compositor_state: CompositorState,
     pub xdg_shell_state: XdgShellState,
+    pub xdg_decoration_state: XdgDecorationState,
     pub shm_state: ShmState,
     pub seat_state: SeatState<Self>,
     pub data_device_state: DataDeviceState,
     pub seat: Seat<Self>,
     pub socket: WaylandSocket,
-    pub geometries: HashMap<WlSurface, WindowGeometry>,
+    pub geometries: HashMap<WlSurface, SurfaceGeometry>,
     pub focused_surface: Option<WlSurface>,
     pub layout_dirty: bool,
 }
@@ -48,6 +37,7 @@ impl ServerState {
         let display_handle = display.handle();
         let compositor_state = CompositorState::new::<Self>(&display_handle);
         let xdg_shell_state = XdgShellState::new::<Self>(&display_handle);
+        let xdg_decoration_state = XdgDecorationState::new::<Self>(&display_handle);
         let shm_state = ShmState::new::<Self>(&display_handle, vec![]);
         let data_device_state = DataDeviceState::new::<Self>(&display_handle);
         let mut seat_state = SeatState::new();
@@ -56,6 +46,7 @@ impl ServerState {
         Ok(Self {
             compositor_state,
             xdg_shell_state,
+            xdg_decoration_state,
             shm_state,
             seat_state,
             data_device_state,
@@ -71,21 +62,24 @@ impl ServerState {
         self.socket.display_name()
     }
 
-    pub fn geometry_for_surface(&self, surface: &WlSurface) -> Option<WindowGeometry> {
+    pub fn geometry_for_surface(&self, surface: &WlSurface) -> Option<SurfaceGeometry> {
         self.geometries.get(surface).copied()
     }
 
-    pub fn geometry_for_surface_or_default(&self, surface: &WlSurface) -> WindowGeometry {
-        self.geometries
-            .get(surface)
-            .copied()
-            .unwrap_or_else(|| crate::backend::WindowGeometry {
+    pub fn geometry_for_surface_or_default(&self, surface: &WlSurface) -> SurfaceGeometry {
+        self.geometries.get(surface).copied().unwrap_or_else(|| {
+            tracing::warn!(
+                ?surface,
+                "No geometry found for surface, using default geometry",
+            );
+            SurfaceGeometry {
                 position: (0, 0).into(),
                 size: (1, 1).into(),
-            })
+            }
+        })
     }
 
-    pub fn set_geometry_for_surface(&mut self, surface: WlSurface, geometry: WindowGeometry) {
+    pub fn set_geometry_for_surface(&mut self, surface: WlSurface, geometry: SurfaceGeometry) {
         self.geometries.insert(surface, geometry);
     }
 
@@ -103,97 +97,3 @@ impl ServerState {
         self.layout_dirty = true;
     }
 }
-
-impl BufferHandler for ServerState {
-    fn buffer_destroyed(&mut self, _buffer: &wayland_server::protocol::wl_buffer::WlBuffer) {}
-}
-
-impl CompositorHandler for ServerState {
-    fn compositor_state(&mut self) -> &mut CompositorState {
-        &mut self.compositor_state
-    }
-
-    fn client_compositor_state<'a>(&self, client: &'a Client) -> &'a CompositorClientState {
-        &client
-            .get_data::<ClientState>()
-            .expect("client data missing")
-            .compositor_state
-    }
-
-    fn commit(&mut self, surface: &WlSurface) {
-        smithay::backend::renderer::utils::on_commit_buffer_handler::<Self>(surface);
-    }
-}
-
-impl XdgShellHandler for ServerState {
-    fn xdg_shell_state(&mut self) -> &mut XdgShellState {
-        &mut self.xdg_shell_state
-    }
-
-    fn new_toplevel(&mut self, surface: ToplevelSurface) {
-        surface.with_pending_state(|state| {
-            state.states.set(xdg_toplevel::State::Activated);
-        });
-
-        surface.send_configure();
-    }
-
-    fn new_popup(&mut self, _surface: PopupSurface, _positioner: PositionerState) {}
-
-    fn grab(&mut self, _surface: PopupSurface, _seat: wl_seat::WlSeat, _serial: Serial) {}
-
-    fn reposition_request(
-        &mut self,
-        _surface: PopupSurface,
-        _positioner: PositionerState,
-        _token: u32,
-    ) {
-    }
-}
-
-impl ShmHandler for ServerState {
-    fn shm_state(&self) -> &ShmState {
-        &self.shm_state
-    }
-}
-
-impl SeatHandler for ServerState {
-    type KeyboardFocus = WlSurface;
-    type PointerFocus = WlSurface;
-    type TouchFocus = WlSurface;
-
-    fn seat_state(&mut self) -> &mut SeatState<Self> {
-        &mut self.seat_state
-    }
-
-    fn focus_changed(&mut self, _seat: &Seat<Self>, _focused: Option<&WlSurface>) {}
-
-    fn cursor_image(
-        &mut self,
-        _seat: &Seat<Self>,
-        _image: smithay::input::pointer::CursorImageStatus,
-    ) {
-    }
-}
-
-impl SelectionHandler for ServerState {
-    type SelectionUserData = ();
-}
-
-impl DataDeviceHandler for ServerState {
-    fn data_device_state(&self) -> &DataDeviceState {
-        &self.data_device_state
-    }
-}
-
-impl ClientDndGrabHandler for ServerState {}
-
-impl ServerDndGrabHandler for ServerState {
-    fn send(&mut self, _mime_type: String, _fd: OwnedFd, _seat: Seat<Self>) {}
-}
-
-smithay::delegate_compositor!(ServerState);
-smithay::delegate_xdg_shell!(ServerState);
-smithay::delegate_shm!(ServerState);
-smithay::delegate_seat!(ServerState);
-smithay::delegate_data_device!(ServerState);

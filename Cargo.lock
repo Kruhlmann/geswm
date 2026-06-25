@@ -332,6 +332,9 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "geswm",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -567,13 +570,14 @@ name = "geswm"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "lazy_static",
  "smithay",
  "thiserror 2.0.18",
  "tracing",
- "tracing-subscriber",
  "wayland-protocols",
  "wayland-server",
  "winit",
+ "xdg",
 ]
 
 [[package]]
@@ -2257,6 +2261,12 @@ name = "xcursor"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b"
+
+[[package]]
+name = "xdg"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fb433233f2df9344722454bc7e96465c9d03bff9d77c248f9e7523fe79585b5"
 
 [[package]]
 name = "xkbcommon"

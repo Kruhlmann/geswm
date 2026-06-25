@@ -22,3 +22,17 @@ impl<'a> From<KeyboardConfiguration<'a>> for XkbConfig<'a> {
         }
     }
 }
+
+impl Default for KeyboardConfiguration<'_> {
+    fn default() -> Self {
+        KeyboardConfiguration {
+            rules: "evdev",
+            model: "pc105",
+            layout: "us",
+            variant: "",
+            options: None,
+            repeat_delay: 250,
+            repeat_rate: 25,
+        }
+    }
+}

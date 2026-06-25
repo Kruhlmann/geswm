@@ -18,6 +18,10 @@ use smithay::{
 use crate::{
     backend::{BackendEvent, BackendPumpStatus, GesWmBackend},
     server::ServerState,
+    surface::{
+        ArrangeContext, RenderTransformContext, SurfaceGeometry, SurfacePhysicalPosition,
+        SurfacePhysicalSize, SurfaceTransformPipeline, SurfaceTransformer,
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -50,14 +54,17 @@ where
 {
     pub graphics: WinitGraphicsBackend<Renderer>,
     pub event_loop: WinitEventLoop,
+    pub surface_transform_pipeline: SurfaceTransformPipeline<Renderer>,
 }
 
 impl WinitBackend<GlesRenderer> {
     pub fn new_gles_renderer() -> Result<WinitBackend<GlesRenderer>, WinitBackendInitError> {
         let (graphics, event_loop) = winit::init::<GlesRenderer>()?;
+
         Ok(WinitBackend {
             graphics,
             event_loop,
+            surface_transform_pipeline: SurfaceTransformPipeline::new(),
         })
     }
 }
@@ -68,7 +75,9 @@ where
     Renderer::TextureId: Clone + 'static,
     SwapBuffersError: From<Renderer::Error>,
 {
-    fn window_size(&self) -> smithay::utils::Size<i32, smithay::utils::Physical> {
+    type Renderer = Renderer;
+
+    fn window_size(&self) -> SurfacePhysicalSize {
         self.graphics.window_size()
     }
 
@@ -82,51 +91,132 @@ where
         }
     }
 
+    fn surface_transform_pipeline(&self) -> &SurfaceTransformPipeline<Self::Renderer> {
+        &self.surface_transform_pipeline
+    }
+
+    fn surface_transform_pipeline_mut(&mut self) -> &mut SurfaceTransformPipeline<Self::Renderer> {
+        &mut self.surface_transform_pipeline
+    }
+
     fn render(&mut self, state: &ServerState, epoch: &Instant) {
         let size = self.window_size();
         let damage = Rectangle::from_size(size);
 
+        let output_rect =
+            crate::surface::SurfaceLogicalRectangle::from_loc_and_size((0, 0), (size.w, size.h));
+
         {
             let (renderer, mut framebuffer) = self.graphics.bind().unwrap();
 
-            let elements = state
+            struct RenderItem<Renderer>
+            where
+                Renderer: smithay::backend::renderer::Renderer,
+            {
+                surface: wayland_server::protocol::wl_surface::WlSurface,
+                geometry: SurfaceGeometry,
+                arrange_ctx: ArrangeContext,
+                elements: Vec<WaylandSurfaceRenderElement<Renderer>>,
+            }
+
+            let render_items = state
                 .xdg_shell_state
                 .toplevel_surfaces()
                 .iter()
-                .flat_map(|surface| {
+                .map(|surface| {
+                    let wl_surface = surface.wl_surface().clone();
+
                     let geometry = state
                         .geometry_for_surface(surface.wl_surface())
-                        .unwrap_or_else(|| crate::backend::WindowGeometry {
+                        .unwrap_or_else(|| SurfaceGeometry {
                             position: (0, 0).into(),
                             size: (1, 1).into(),
                         });
 
-                    let render_position =
-                        smithay::utils::Point::<i32, smithay::utils::Physical>::from((
-                            geometry.position.x,
-                            geometry.position.y,
-                        ));
+                    let focused = state.is_focused(surface.wl_surface());
 
-                    smithay::backend::renderer::element::surface::render_elements_from_surface_tree(
-                        renderer,
-                        surface.wl_surface(),
-                        render_position,
-                        1.0,
-                        1.0,
-                        smithay::backend::renderer::element::Kind::Unspecified,
-                    )
+                    let arrange_ctx = ArrangeContext {
+                        focused,
+                        fullscreen: false,
+                        floating: false,
+                        output_rect,
+                    };
+
+                    let arranged = self
+                        .surface_transform_pipeline
+                        .begin(geometry, arrange_ctx)
+                        .arrange();
+
+                    let transform = arranged.transform();
+
+                    let render_position = SurfacePhysicalPosition::from((
+                        transform.client_rect.loc.x,
+                        transform.client_rect.loc.y,
+                    ));
+
+                    let elements: Vec<WaylandSurfaceRenderElement<Renderer>> =
+    smithay::backend::renderer::element::surface::render_elements_from_surface_tree(
+        renderer,
+        surface.wl_surface(),
+        render_position,
+        1.0,
+        1.0,
+        smithay::backend::renderer::element::Kind::Unspecified,
+    );
+
+                    RenderItem {
+                        surface: wl_surface,
+                        geometry,
+                        arrange_ctx,
+                        elements,
+                    }
                 })
-                .collect::<Vec<WaylandSurfaceRenderElement<Renderer>>>();
+                .collect::<Vec<_>>();
 
             let mut frame = renderer
                 .render(&mut framebuffer, size, Transform::Flipped180)
-                .unwrap(); // TODO
+                .unwrap();
 
             frame
                 .clear(Color32F::new(0.05, 0.05, 0.08, 1.0), &[damage])
-                .unwrap(); // TODO
-            draw_render_elements(&mut frame, 1.0, &elements, &[damage]).unwrap(); // TODO
-            let _ = frame.finish().unwrap(); // TODO
+                .unwrap();
+
+            for item in render_items {
+                let arranged = self
+                    .surface_transform_pipeline
+                    .begin(item.geometry, item.arrange_ctx)
+                    .arrange();
+
+                let transform = arranged.transform();
+
+                let pre_rendered = {
+                    let mut transform_ctx = RenderTransformContext {
+                        target: &mut frame,
+                        surface: &item.surface,
+                        transform,
+                        focused: item.arrange_ctx.focused,
+                        output_rect,
+                    };
+
+                    arranged.render_pre(&mut transform_ctx).unwrap()
+                };
+
+                draw_render_elements(&mut frame, 1.0, &item.elements, &[damage]).unwrap();
+
+                {
+                    let mut transform_ctx = RenderTransformContext {
+                        target: &mut frame,
+                        surface: &item.surface,
+                        transform,
+                        focused: item.arrange_ctx.focused,
+                        output_rect,
+                    };
+
+                    let _post_rendered = pre_rendered.render_post(&mut transform_ctx).unwrap();
+                }
+            }
+
+            let _ = frame.finish().unwrap();
         }
 
         for surface in state.xdg_shell_state.toplevel_surfaces() {
@@ -149,6 +239,6 @@ where
             );
         }
 
-        self.graphics.submit(Some(&[damage])).unwrap(); // TODO
+        self.graphics.submit(Some(&[damage])).unwrap();
     }
 }

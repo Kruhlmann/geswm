@@ -4,7 +4,7 @@ use smithay::backend::input::{
 };
 use smithay::backend::winit::WinitEvent;
 
-use crate::backend::BackendGeometryPhysical;
+use crate::surface::SurfacePhysicalSize;
 
 #[derive(Debug)]
 pub enum InputEvent {
@@ -73,7 +73,7 @@ pub enum BackendEvent {
     Input(InputEvent),
     Redraw,
     Resize {
-        size: BackendGeometryPhysical,
+        size: SurfacePhysicalSize,
         scale: f64,
     },
 }

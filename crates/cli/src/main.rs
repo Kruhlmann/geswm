@@ -1,7 +1,14 @@
 use clap::Parser;
-use cli::cli::Cli;
+
+use cli::{
+    cli::{Cli, CliCommand},
+    log,
+};
 
 fn main() {
-    let cli = Cli::parse();
-    eprintln!("{cli:?}")
+    log::setup_logging();
+    let res = match Cli::parse().command {
+        CliCommand::Server => cli::run_server(),
+        CliCommand::Msg { message } => todo!(),
+    };
 }

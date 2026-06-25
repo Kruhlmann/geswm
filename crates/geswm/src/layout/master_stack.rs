@@ -1,8 +1,8 @@
 use smithay::utils::{Point, Size};
 
 use crate::{
-    backend::WindowGeometry,
     layout::{Layout, LayoutContext},
+    surface::SurfaceGeometry,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -29,7 +29,7 @@ impl Layout for MasterStackLayout {
         }
 
         if count == 1 {
-            ctx.windows[0].geometry = WindowGeometry {
+            ctx.windows[0].geometry = SurfaceGeometry {
                 position: Point::from((0, 0)),
                 size: ctx.output_size,
             };
@@ -42,7 +42,7 @@ impl Layout for MasterStackLayout {
         let master_w = output_w * self.master_percent / 100;
         let stack_w = output_w - master_w;
 
-        ctx.windows[0].geometry = WindowGeometry {
+        ctx.windows[0].geometry = SurfaceGeometry {
             position: Point::from((0, 0)),
             size: Size::from((master_w, output_h)),
         };
@@ -59,7 +59,7 @@ impl Layout for MasterStackLayout {
                 stack_h
             };
 
-            window.geometry = WindowGeometry {
+            window.geometry = SurfaceGeometry {
                 position: Point::from((master_w, y)),
                 size: Size::from((stack_w, height)),
             };

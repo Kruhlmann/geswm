@@ -5,5 +5,5 @@ pub mod config;
 pub mod daemon;
 pub mod input;
 pub mod layout;
-pub mod log;
 pub mod server;
+pub mod surface;

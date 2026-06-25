@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
 use crate::{
-    backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend, WindowSize},
+    backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend},
     client::ClientState,
     cmd::{
         WmSessionCommand,
@@ -24,6 +24,7 @@ use crate::{
     input::{KeyBind, UnixSocket},
     layout::{Layout, LayoutWindow, NoLayout},
     server::ServerState,
+    surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize, SurfaceTransformer},
 };
 
 pub struct Daemon<Keyboard, Mouse, Backend, L> {
@@ -81,9 +82,7 @@ where
 
     fn arrange_windows(&mut self) {
         let physical_size = self.backend.window_size();
-
-        let output_size = WindowSize::from((physical_size.w, physical_size.h));
-
+        let output_size = SurfaceLogicalSize::from((physical_size.w, physical_size.h));
         let surfaces = self
             .server_state
             .xdg_shell_state
@@ -108,11 +107,24 @@ where
         self.layout.arrange(&mut ctx);
 
         for (surface, layout_window) in surfaces.iter().zip(layout_windows.into_iter()) {
-            self.server_state
-                .set_geometry_for_surface(surface.wl_surface().clone(), layout_window.geometry);
+            let outer_geometry = layout_window.geometry;
+            let arrange_ctx = ArrangeContext {
+                focused: layout_window.focused,
+                fullscreen: false,
+                floating: false,
+                output_rect: SurfaceLogicalRectangle::from_loc_and_size((0, 0), output_size),
+            };
 
-            let width = layout_window.geometry.size.w.max(1);
-            let height = layout_window.geometry.size.h.max(1);
+            let run = self
+                .backend
+                .surface_transform_pipeline()
+                .begin(outer_geometry, arrange_ctx)
+                .arrange();
+
+            let configure_size = run.configure_size();
+
+            let width = configure_size.w.max(1);
+            let height = configure_size.h.max(1);
             let size = (width, height).into();
 
             let size_changed = surface.with_pending_state(|state| {
