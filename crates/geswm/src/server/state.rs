@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use smithay::{
     input::{Seat, SeatState},
-    output::{Mode, PhysicalProperties, Subpixel},
     wayland::{
         compositor::CompositorState,
         output::OutputManagerState,
@@ -17,22 +16,13 @@ use smithay::{
 use wayland_server::protocol::wl_surface::WlSurface;
 
 use crate::{
-    output::WlOutputAdapter,
+    output::{OutputDescription, WlOutputAdapter},
     server::{WaylandSocket, WaylandSocketInitError},
     surface::SurfaceGeometry,
 };
 
-lazy_static::lazy_static! {
-    pub static ref INITIAL_MODE: Mode = Mode { size: (800, 600).into(), refresh: 60_000 };
-    pub static ref PHYSICAL_PROPS: PhysicalProperties = PhysicalProperties {
-        size: (340, 190).into(),
-        subpixel: Subpixel::Unknown,
-        make: "geswm".into(),
-        model: "winit".into(),
-    };
-}
-
 pub struct ServerState {
+    pub display_handle: wayland_server::DisplayHandle,
     pub compositor_state: CompositorState,
     pub output_manager_state: OutputManagerState,
     pub xdg_shell_state: XdgShellState,
@@ -43,7 +33,7 @@ pub struct ServerState {
     pub data_device_state: DataDeviceState,
     pub seat: Seat<Self>,
     pub socket: WaylandSocket,
-    pub output: WlOutputAdapter,
+    pub output: Option<WlOutputAdapter>,
     pub geometries: HashMap<WlSurface, SurfaceGeometry>,
     pub focused_surface: Option<WlSurface>,
     pub layout_dirty: bool,
@@ -57,12 +47,6 @@ impl ServerState {
         let compositor_state = CompositorState::new::<Self>(&display_handle);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&display_handle);
         let socket = WaylandSocket::try_autocreate()?;
-        let output = WlOutputAdapter::new::<Self>(
-            &display_handle,
-            socket.socket_name().unwrap().display().to_string(),
-            PHYSICAL_PROPS.clone(),
-            *INITIAL_MODE,
-        );
         let xdg_shell_state = XdgShellState::new::<Self>(&display_handle);
         let layer_shell_state = WlrLayerShellState::new::<Self>(&display_handle);
         let xdg_decoration_state = XdgDecorationState::new::<Self>(&display_handle);
@@ -71,6 +55,7 @@ impl ServerState {
         let mut seat_state = SeatState::new();
         let seat = seat_state.new_wl_seat(&display_handle, "geswm");
         Ok(Self {
+            display_handle,
             compositor_state,
             output_manager_state,
             xdg_shell_state,
@@ -81,7 +66,7 @@ impl ServerState {
             data_device_state,
             seat,
             socket,
-            output,
+            output: None,
             geometries: HashMap::new(),
             focused_surface: None,
             layout_dirty: true,
@@ -121,7 +106,15 @@ impl ServerState {
         self.layout_dirty = true;
     }
 
-    pub fn set_output_size(&mut self, width: i32, height: i32) {
-        self.output.set_size(width, height);
+    pub fn sync_output(&mut self, description: OutputDescription) {
+        match self.output.as_mut() {
+            Some(output) => output.apply_state(description.state),
+            None => {
+                self.output = Some(WlOutputAdapter::new::<Self>(
+                    &self.display_handle,
+                    description,
+                ));
+            }
+        }
     }
 }

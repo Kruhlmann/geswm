@@ -8,11 +8,14 @@ pub use winit::*;
 
 use std::time::Instant;
 
-use crate::surface::{SurfacePhysicalSize, SurfaceTransformPipeline, SurfaceTransformer};
+use crate::{
+    output::OutputDiscovery,
+    surface::{SurfacePhysicalSize, SurfaceTransformPipeline, SurfaceTransformer},
+};
 
 pub type NoBackend = ();
 
-pub trait GesWmBackend<State>: Sized {
+pub trait GesWmBackend<State>: Sized + OutputDiscovery {
     type Renderer: smithay::backend::renderer::Renderer;
     fn render(&mut self, state: &State, epoch: &Instant);
     fn window_size(&self) -> SurfacePhysicalSize;

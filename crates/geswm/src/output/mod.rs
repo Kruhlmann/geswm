@@ -1,5 +1,5 @@
 use smithay::{
-    output::{Mode, Output as SmithayOutput, PhysicalProperties, Scale},
+    output::{Mode, Output as SmithayOutput, PhysicalProperties, Scale, Subpixel},
     utils::Transform,
     wayland::output::WlOutputData,
 };
@@ -9,30 +9,62 @@ use wayland_server::{
 
 use crate::surface::SurfaceLogicalPosition;
 
+#[derive(Clone, Debug)]
+pub struct OutputState {
+    pub mode: Mode,
+    pub scale: Scale,
+    pub transform: Transform,
+    pub location: SurfaceLogicalPosition,
+}
+
+#[derive(Clone, Debug)]
+pub struct OutputDescription {
+    pub name: String,
+    pub physical_properties: PhysicalProperties,
+    pub state: OutputState,
+}
+
+impl OutputDescription {
+    pub fn virtual_output(name: impl Into<String>, width: i32, height: i32) -> Self {
+        Self {
+            name: name.into(),
+            physical_properties: PhysicalProperties {
+                size: (340, 190).into(),
+                subpixel: Subpixel::Unknown,
+                make: "geswm".into(),
+                model: "virtual".into(),
+            },
+            state: OutputState {
+                mode: Mode {
+                    size: (width, height).into(),
+                    refresh: 60_000,
+                },
+                scale: Scale::Integer(1),
+                transform: Transform::Normal,
+                location: (0, 0).into(),
+            },
+        }
+    }
+}
+
+pub trait OutputDiscovery {
+    fn output_description(&self) -> OutputDescription;
+}
+
 pub struct WlOutputAdapter {
     _global_id: GlobalId,
     inner: SmithayOutput,
 }
 
 impl WlOutputAdapter {
-    pub fn new<D>(
-        display_handle: &DisplayHandle,
-        name: impl Into<String>,
-        physical_properties: PhysicalProperties,
-        initial_mode: Mode,
-    ) -> Self
+    pub fn new<D>(display_handle: &DisplayHandle, description: OutputDescription) -> Self
     where
         D: GlobalDispatch<WlOutput, WlOutputData>,
         D: 'static,
     {
-        let inner = SmithayOutput::new(name.into(), physical_properties);
-        inner.change_current_state(
-            Some(initial_mode),
-            Some(Transform::Normal),
-            Some(Scale::Integer(1)),
-            Some((0, 0).into()),
-        );
-        inner.set_preferred(initial_mode);
+        let inner = SmithayOutput::new(description.name, description.physical_properties);
+        Self::apply_state_to_inner(&inner, description.state.clone());
+        inner.set_preferred(description.state.mode);
 
         let global_id = inner.create_global::<D>(display_handle);
 
@@ -67,5 +99,18 @@ impl WlOutputAdapter {
     pub fn set_location(&mut self, location: SurfaceLogicalPosition) {
         self.inner
             .change_current_state(None, None, None, Some(location));
+    }
+
+    pub fn apply_state(&mut self, state: OutputState) {
+        Self::apply_state_to_inner(&self.inner, state);
+    }
+
+    fn apply_state_to_inner(inner: &SmithayOutput, state: OutputState) {
+        inner.change_current_state(
+            Some(state.mode),
+            Some(state.transform),
+            Some(state.scale),
+            Some(state.location),
+        );
     }
 }

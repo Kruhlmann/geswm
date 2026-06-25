@@ -21,6 +21,7 @@ impl WlrLayerShellHandler for ServerState {
         tracing::info!(?layer, ?namespace, "new layer-shell surface");
 
         surface.with_pending_state(|state| {
+            // TODO: derive this from the layer-shell requested size, anchors, margins, and output.
             state.size = Some((640, 480).into());
         });
         surface.send_configure();

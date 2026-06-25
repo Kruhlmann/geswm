@@ -16,6 +16,7 @@ use smithay::{
 
 use crate::{
     backend::{BackendEvent, BackendPumpStatus, GesWmBackend},
+    output::{OutputDescription, OutputDiscovery},
     server::ServerState,
     surface::{
         ArrangeContext, RenderTransformContext, SurfaceGeometry, SurfacePhysicalPosition,
@@ -182,6 +183,7 @@ where
                         let wl_surface = surface.wl_surface().clone();
                         let layer_state = surface.current_state();
                         let layer_size = layer_state.size.unwrap_or_else(|| {
+                            // TODO: keep layer-shell geometry in logical space and convert at render boundaries.
                             SurfacePhysicalSize::from((640, 480)).to_logical(1)
                         });
 
@@ -316,5 +318,16 @@ where
         }
 
         self.graphics.submit(Some(&[damage])).unwrap();
+    }
+}
+
+impl<Renderer> OutputDiscovery for WinitBackend<Renderer>
+where
+    Renderer: Bind<EGLSurface>,
+    SwapBuffersError: From<Renderer::Error>,
+{
+    fn output_description(&self) -> OutputDescription {
+        let size = self.graphics.window_size();
+        OutputDescription::virtual_output("geswm-winit-0", size.w, size.h)
     }
 }

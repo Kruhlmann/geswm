@@ -102,7 +102,7 @@ where
     fn arrange_windows(&mut self) {
         let physical_size = self.backend.window_size();
         self.server_state
-            .set_output_size(physical_size.w, physical_size.h);
+            .sync_output(self.backend.output_description());
         let output_size = SurfaceLogicalSize::from((physical_size.w, physical_size.h));
         let surfaces = self
             .server_state
