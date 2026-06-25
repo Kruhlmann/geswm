@@ -1,9 +1,11 @@
 pub mod event;
 pub mod pump_status;
+#[cfg(feature = "winit")]
 pub mod winit;
 
 pub use event::*;
 pub use pump_status::*;
+#[cfg(feature = "winit")]
 pub use winit::*;
 
 use std::time::Instant;

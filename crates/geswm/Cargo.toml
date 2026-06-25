@@ -3,14 +3,18 @@ name = "geswm"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["winit"]
+winit = ["dep:winit", "smithay/backend_winit", "smithay/renderer_gl"]
+
 [dependencies]
 bitflags.workspace = true
 lazy_static.workspace = true
 signal-hook.workspace = true
-smithay.workspace = true
+smithay = { workspace = true, features = ["wayland_frontend"] }
 thiserror.workspace = true
 tracing.workspace = true
 wayland-protocols.workspace = true
 wayland-server.workspace = true
-winit.workspace = true
+winit = { workspace = true, optional = true }
 xdg.workspace = true

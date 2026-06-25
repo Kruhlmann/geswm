@@ -41,3 +41,6 @@ jobs:
 
       - name: Check workspace
         run: cargo check --workspace --locked
+
+      - name: Check geswm without default features
+        run: cargo check -p geswm --no-default-features --locked

@@ -1,7 +1,7 @@
-use smithay::backend::input::{
-    AbsolutePositionEvent, ButtonState, Event, KeyState, KeyboardKeyEvent, Keycode,
-    PointerButtonEvent,
-};
+#[cfg(feature = "winit")]
+use smithay::backend::input::{AbsolutePositionEvent, Event, KeyboardKeyEvent, PointerButtonEvent};
+use smithay::backend::input::{ButtonState, KeyState, Keycode};
+#[cfg(feature = "winit")]
 use smithay::backend::winit::WinitEvent;
 
 use crate::surface::SurfacePhysicalSize;
@@ -29,6 +29,7 @@ pub enum InputEvent {
     Unimplemented,
 }
 
+#[cfg(feature = "winit")]
 impl From<smithay::backend::input::InputEvent<smithay::backend::winit::WinitInput>> for InputEvent {
     fn from(
         event: smithay::backend::input::InputEvent<smithay::backend::winit::WinitInput>,
@@ -78,6 +79,7 @@ pub enum BackendEvent {
     },
 }
 
+#[cfg(feature = "winit")]
 impl From<WinitEvent> for BackendEvent {
     fn from(event: WinitEvent) -> Self {
         match event {

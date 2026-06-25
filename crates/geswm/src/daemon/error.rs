@@ -1,6 +1,7 @@
-use crate::{
-    backend::WinitBackendInitError, input::UnixSocketInitError, server::WaylandSocketInitError,
-};
+use crate::{input::UnixSocketInitError, server::WaylandSocketInitError};
+
+#[cfg(feature = "winit")]
+use crate::backend::WinitBackendInitError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DaemonInitError {
@@ -10,12 +11,14 @@ pub enum DaemonInitError {
     WaylandSocketError(WaylandSocketInitError),
     #[error("unix socket init error {0}")]
     UnixSocketError(UnixSocketInitError),
+    #[cfg(feature = "winit")]
     #[error("backend init error {0}")]
     BackendInitError(WinitBackendInitError),
     #[error("io error {0}")]
     Io(#[from] std::io::Error),
 }
 
+#[cfg(feature = "winit")]
 impl From<WinitBackendInitError> for DaemonInitError {
     fn from(value: WinitBackendInitError) -> Self {
         Self::BackendInitError(value)

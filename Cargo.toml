@@ -3,7 +3,14 @@ members = ["crates/*"]
 resolver = "3"
 
 [profile.dev]
-debug = 1
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.debugging]
+inherits = "dev"
+debug = true
 
 [profile.release]
 debug = 0
@@ -17,11 +24,7 @@ clap = { version = "4.6.1", features = ["derive"] }
 geswm = { path = "crates/geswm" }
 lazy_static = "1.5.0"
 signal-hook = "0.3.18"
-smithay = { version = "0.7", default-features = false, features = [
-    "backend_winit",
-    "renderer_gl",
-    "wayland_frontend",
-] }
+smithay = { version = "0.7", default-features = false }
 smithay-client-toolkit = "0.19"
 tempfile = "3.20"
 thiserror = "2.0.18"

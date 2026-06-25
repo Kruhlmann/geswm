@@ -5,6 +5,6 @@ edition = "2024"
 
 [dependencies]
 clap.workspace = true
-geswm.workspace = true
+geswm = { workspace = true, features = ["winit"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true

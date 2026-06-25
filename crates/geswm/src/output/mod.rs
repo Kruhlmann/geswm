@@ -1,5 +1,7 @@
+#[cfg(feature = "winit")]
+use smithay::output::Subpixel;
 use smithay::{
-    output::{Mode, Output as SmithayOutput, PhysicalProperties, Scale, Subpixel},
+    output::{Mode, Output as SmithayOutput, PhysicalProperties, Scale},
     utils::Transform,
     wayland::output::WlOutputData,
 };
@@ -25,6 +27,7 @@ pub struct OutputDescription {
 }
 
 impl OutputDescription {
+    #[cfg(feature = "winit")]
     pub fn virtual_output(name: impl Into<String>, width: i32, height: i32) -> Self {
         Self {
             name: name.into(),
