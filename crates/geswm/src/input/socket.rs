@@ -1,4 +1,7 @@
-use std::{os::unix::net::UnixListener, path::PathBuf};
+use std::{
+    os::unix::net::{UnixListener, UnixStream},
+    path::{Path, PathBuf},
+};
 
 const MAX_SOCKET_INDEX: usize = 256;
 
@@ -31,7 +34,7 @@ impl UnixSocket {
             let name = format!("{socket_prefix}-{i}");
             let path = runtime_dir.join(&name);
 
-            match UnixListener::bind(&path) {
+            match bind_listener(&path) {
                 Ok(listener) => {
                     tracing::info!(?path, "opened socket");
                     return Ok(Self {
@@ -66,6 +69,40 @@ impl UnixSocket {
 
     pub fn listener(&self) -> &UnixListener {
         &self.listener
+    }
+}
+
+fn bind_listener(path: &Path) -> Result<UnixListener, std::io::Error> {
+    match UnixListener::bind(path) {
+        Ok(listener) => Ok(listener),
+        Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {
+            if stale_socket(path)? {
+                tracing::info!(?path, "removing stale socket");
+                std::fs::remove_file(path)?;
+                UnixListener::bind(path)
+            } else {
+                Err(error)
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn stale_socket(path: &Path) -> Result<bool, std::io::Error> {
+    match UnixStream::connect(path) {
+        Ok(stream) => {
+            drop(stream);
+            Ok(false)
+        }
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound
+            ) =>
+        {
+            Ok(true)
+        }
+        Err(error) => Err(error),
     }
 }
 

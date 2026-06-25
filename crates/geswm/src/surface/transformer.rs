@@ -41,7 +41,7 @@ impl From<SurfaceLogicalRectangle> for WindowTransform {
 
 impl From<SurfaceGeometry> for SurfaceLogicalRectangle {
     fn from(geometry: SurfaceGeometry) -> Self {
-        SurfaceLogicalRectangle::from_loc_and_size(geometry.position, geometry.size)
+        SurfaceLogicalRectangle::new(geometry.position, geometry.size)
     }
 }
 

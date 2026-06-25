@@ -104,7 +104,7 @@ where
         let damage = Rectangle::from_size(size);
 
         let output_rect =
-            crate::surface::SurfaceLogicalRectangle::from_loc_and_size((0, 0), (size.w, size.h));
+            crate::surface::SurfaceLogicalRectangle::new((0, 0).into(), (size.w, size.h).into());
 
         {
             let (renderer, mut framebuffer) = self.graphics.bind().unwrap();

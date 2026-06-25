@@ -13,3 +13,12 @@ pub struct SurfaceGeometry {
     pub position: SurfaceLogicalPosition,
     pub size: SurfaceLogicalSize,
 }
+
+impl Default for SurfaceGeometry {
+    fn default() -> Self {
+        Self {
+            position: SurfaceLogicalPosition::from((0, 0)),
+            size: SurfaceLogicalSize::from((1, 1)),
+        }
+    }
+}

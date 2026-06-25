@@ -36,9 +36,9 @@ where
         let client_width = (rect.size.w - b * 2).max(1);
         let client_height = (rect.size.h - b * 2).max(1);
 
-        let client_rect = SurfaceLogicalRectangle::from_loc_and_size(
-            (rect.loc.x + b, rect.loc.y + b),
-            (client_width, client_height),
+        let client_rect = SurfaceLogicalRectangle::new(
+            (rect.loc.x + b, rect.loc.y + b).into(),
+            (client_width, client_height).into(),
         );
 
         input.client_rect = client_rect;
@@ -94,6 +94,6 @@ fn border_rects(
     ]
     .into_iter()
     .filter(|(_, _, w, h)| *w > 0 && *h > 0)
-    .map(|(x, y, w, h)| SurfacePhysicalRectangle::from_loc_and_size((x, y), (w, h)))
+    .map(|(x, y, w, h)| SurfacePhysicalRectangle::new((x, y).into(), (w, h).into()))
     .collect()
 }

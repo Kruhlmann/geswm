@@ -41,6 +41,11 @@ pub struct Daemon<Keyboard, Mouse, Backend, L> {
     layout: L,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DaemonExit {
+    Requested(i32),
+}
+
 impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
     pub fn new() -> Result<Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout>, DaemonInitError> {
         let display: wayland_server::Display<ServerState> = wayland_server::Display::new()?;
@@ -69,9 +74,23 @@ where
     Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler + MouseHandler + FocusHandler,
     L: Layout,
 {
-    pub fn run(&mut self) -> ! {
+    pub fn run(&mut self) -> DaemonExit {
+        self.run_until(|| false)
+    }
+
+    pub fn run_until<F>(&mut self, mut should_exit: F) -> DaemonExit
+    where
+        F: FnMut() -> bool,
+    {
         loop {
-            self.handle_new_events();
+            if should_exit() {
+                tracing::info!("shutdown requested");
+                return DaemonExit::Requested(0);
+            }
+
+            if let Some(exit) = self.handle_new_events() {
+                return exit;
+            }
             self.handle_client_connections();
             self.arrange_windows();
             self.synchronize_clients();
@@ -108,11 +127,14 @@ where
 
         for (surface, layout_window) in surfaces.iter().zip(layout_windows.into_iter()) {
             let outer_geometry = layout_window.geometry;
+            self.server_state
+                .set_geometry_for_surface(surface.wl_surface().clone(), outer_geometry);
+
             let arrange_ctx = ArrangeContext {
                 focused: layout_window.focused,
                 fullscreen: false,
                 floating: false,
-                output_rect: SurfaceLogicalRectangle::from_loc_and_size((0, 0), output_size),
+                output_rect: SurfaceLogicalRectangle::new((0, 0).into(), output_size),
             };
 
             let run = self
@@ -141,7 +163,7 @@ where
         }
     }
 
-    fn handle_new_events(&mut self) {
+    fn handle_new_events(&mut self) -> Option<DaemonExit> {
         let mut event_queue = Vec::new();
         match self
             .backend
@@ -150,7 +172,7 @@ where
             BackendPumpStatus::Continue => {}
             BackendPumpStatus::Exit(exit_code) => {
                 tracing::info!(?exit_code, "event loop exited");
-                std::process::exit(0); // TODO
+                return Some(DaemonExit::Requested(exit_code));
             }
         };
 
@@ -184,7 +206,7 @@ where
                 }
                 BackendEvent::CloseRequested => {
                     tracing::info!("close requested");
-                    std::process::exit(0); // TODO: clean up
+                    return Some(DaemonExit::Requested(0));
                 }
             };
             commands.push(command);
@@ -196,6 +218,8 @@ where
                 .inspect_err(|error| tracing::error!(?error, ?command, "user cmd execution"))
                 .ok();
         }
+
+        None
     }
 
     fn handle_client_connections(&mut self) {

@@ -68,14 +68,8 @@ impl ServerState {
 
     pub fn geometry_for_surface_or_default(&self, surface: &WlSurface) -> SurfaceGeometry {
         self.geometries.get(surface).copied().unwrap_or_else(|| {
-            tracing::warn!(
-                ?surface,
-                "No geometry found for surface, using default geometry",
-            );
-            SurfaceGeometry {
-                position: (0, 0).into(),
-                size: (1, 1).into(),
-            }
+            tracing::warn!(?surface, "No surface geometry; using default");
+            SurfaceGeometry::default()
         })
     }
 
