@@ -1,8 +1,8 @@
 [package]
 name = "geswm"
 description = "A wayland compositor just for me"
-documentation = ""
-homepage = ""
+documentation = "https://kruhlmann.dev"
+homepage = "https://kruhlmann.dev"
 repository = "https://github.com/Kruhlmann/geswm"
 version = "0.1.0"
 edition = "2024"
