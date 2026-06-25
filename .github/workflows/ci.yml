@@ -40,9 +40,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install cargo tools
-        run: |
-          cargo install cargo-machete --locked
-          cargo install cargo-audit --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete,cargo-audit
 
       - name: Check package
         run: cargo check --locked
