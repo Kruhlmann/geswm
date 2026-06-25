@@ -8,7 +8,7 @@ A tiling wayland compositor just for me
 
 ```sh
 $ cargo new --bin my-wm
-$ cargo add geswm
+$ cargo add geswm --features winit
 ```
 
 ```rs
