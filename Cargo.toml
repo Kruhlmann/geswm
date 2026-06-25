@@ -29,12 +29,18 @@ panic = "abort"
 
 [dependencies]
 bitflags = "2.13.0"
-lazy_static = "1.5.0"
 signal-hook = "0.3.18"
-smithay = { version = "0.7", default-features = false, features = ["wayland_frontend"] }
+smithay = { version = "0.7", default-features = false, features = [
+    "wayland_frontend",
+] }
 thiserror = "2.0.18"
 tracing = "0.1.44"
 wayland-protocols = { version = "0.32", features = ["client", "server"] }
 wayland-server = "0.31"
-winit = { version = "0.30", features = ["wayland", "wayland-dlopen", "x11", "rwh_06"], optional = true }
+winit = { version = "0.30", features = [
+    "wayland",
+    "wayland-dlopen",
+    "x11",
+    "rwh_06",
+], optional = true }
 xdg = "3.0.0"

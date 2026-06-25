@@ -36,6 +36,9 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
@@ -47,3 +50,9 @@ jobs:
 
       - name: Check simple-wm example
         run: cargo check --example simple-wm --locked
+
+      - name: Check unused dependencies
+        run: nix-shell --run "cargo machete"
+
+      - name: Audit dependencies
+        run: nix-shell --run "cargo audit --deny warnings"

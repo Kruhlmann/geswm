@@ -5,6 +5,8 @@
 pkgs.mkShell {
   buildInputs = [
     pkgs.cargo-llvm-cov
+    pkgs.cargo-audit
+    pkgs.cargo-machete
     pkgs.libGL
     pkgs.libxkbcommon
     pkgs.mesa
