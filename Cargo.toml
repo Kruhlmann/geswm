@@ -8,7 +8,6 @@ repository = "https://github.com/Kruhlmann/geswm"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-license-file = "LICENSE"
 readme = "README.md"
 keywords = ["wayland", "window-manager"]
 categories = ["rendering"]
@@ -46,6 +45,7 @@ smithay = { version = "0.7", default-features = false, features = [
 ] }
 thiserror = "2.0.18"
 tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 wayland-protocols = { version = "0.32", features = ["client", "server"] }
 wayland-server = "0.31"
 winit = { version = "0.30", features = [
