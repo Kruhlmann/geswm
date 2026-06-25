@@ -29,7 +29,7 @@ use crate::{
         mouse::{MouseHandler, NoMouse},
     },
     input::{KeyBind, UnixSocket},
-    layout::{Layout, LayoutWindow, NoLayout},
+    layout::{Layout, LayoutContext, LayoutWindow, NoLayout},
     server::ServerState,
     surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
 };
@@ -128,37 +128,37 @@ where
     }
 
     fn arrange_windows(&mut self) {
-        let physical_size = self.backend.window_size();
         self.server_state
             .sync_output(self.backend.output_description());
-        let output_size = SurfaceLogicalSize::from((physical_size.w, physical_size.h));
-        let surfaces = self
-            .server_state
-            .xdg_shell_state
-            .toplevel_surfaces()
-            .to_vec();
 
-        let mut layout_windows = surfaces
+        let physical_size = self.backend.window_size();
+        let output_size = SurfaceLogicalSize::from((physical_size.w, physical_size.h));
+
+        let mut layout_windows = self
+            .server_state
+            .windows
             .iter()
-            .map(|surface| LayoutWindow {
-                geometry: self
-                    .server_state
-                    .geometry_for_surface_or_default(surface.wl_surface()),
-                focused: self.server_state.is_focused(surface.wl_surface()),
+            .map(|window| LayoutWindow {
+                geometry: window.geometry,
+                focused: self.server_state.is_focused(&window.surface),
             })
             .collect::<Vec<_>>();
 
-        let mut ctx = crate::layout::LayoutContext {
+        let mut ctx = LayoutContext {
             output_size,
             windows: &mut layout_windows,
         };
 
         self.layout.arrange(&mut ctx);
 
-        for (surface, layout_window) in surfaces.iter().zip(layout_windows.into_iter()) {
+        for (window, layout_window) in self
+            .server_state
+            .windows
+            .iter_mut()
+            .zip(layout_windows.into_iter())
+        {
             let outer_geometry = layout_window.geometry;
-            self.server_state
-                .set_geometry_for_surface(surface.wl_surface().clone(), outer_geometry);
+            window.geometry = outer_geometry;
 
             let arrange_ctx = ArrangeContext {
                 focused: layout_window.focused,
@@ -179,7 +179,7 @@ where
             let height = configure_size.h.max(1);
             let size = (width, height).into();
 
-            let size_changed = surface.with_pending_state(|state| {
+            let size_changed = window.toplevel.with_pending_state(|state| {
                 state
                     .size
                     .replace(size)
@@ -188,9 +188,12 @@ where
             });
 
             if size_changed {
-                surface.send_configure();
+                tracing::debug!(?window, "window size changed");
+                window.toplevel.send_configure();
             }
         }
+
+        self.server_state.layout_dirty = false;
     }
 
     fn handle_new_events(&mut self) -> Option<DaemonExit> {

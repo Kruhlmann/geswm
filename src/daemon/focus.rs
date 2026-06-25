@@ -6,6 +6,7 @@ use smithay::{
         shell::wlr_layer::{KeyboardInteractivity, LayerSurfaceCachedState},
     },
 };
+use wayland_server::protocol::wl_surface::WlSurface;
 
 use crate::{
     daemon::{Daemon, keyboard::NoKeyboard},
@@ -18,67 +19,60 @@ pub trait FocusHandler {
 
 impl<Mouse, Backend, L> FocusHandler for Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
     fn ensure_focus(&mut self) {
-        let layer_focus = self
-            .server_state
-            .layer_shell_state
-            .layer_surfaces()
-            .rev()
-            .find(|surface| {
-                surface.alive()
-                    && compositor::with_states(surface.wl_surface(), |states| {
-                        states
-                            .cached_state
-                            .get::<LayerSurfaceCachedState>()
-                            .current()
-                            .keyboard_interactivity
-                            != KeyboardInteractivity::None
-                    })
-            })
-            .map(|surface| surface.wl_surface().clone());
-
-        if let Some(surface) = layer_focus {
-            if !self.server_state.is_focused(&surface) {
-                self.keyboard.set_focus(
-                    &mut self.server_state,
-                    Some(surface.clone()),
-                    SERIAL_COUNTER.next_serial(),
-                );
-                self.server_state.set_focused_surface(Some(surface));
-            }
+        if self.focused_window_still_valid() {
             return;
         }
 
-        let focused_toplevel_alive =
-            self.server_state
-                .focused_surface
-                .as_ref()
-                .is_some_and(|focused| {
-                    self.server_state
-                        .xdg_shell_state
-                        .toplevel_surfaces()
-                        .iter()
-                        .any(|toplevel| toplevel.wl_surface() == focused)
-                });
-
-        if focused_toplevel_alive {
-            return;
+        if let Some(surface) = self.next_focusable_window() {
+            self.focus_surface(surface);
+        } else {
+            self.clear_focus();
         }
+    }
+}
 
-        if let Some(surface) = self
-            .server_state
-            .xdg_shell_state
-            .toplevel_surfaces()
+impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
+    fn focused_window_still_valid(&self) -> bool {
+        let Some(focused) = self.server_state.focused_window.as_ref() else {
+            return false;
+        };
+
+        self.server_state
+            .windows
             .iter()
-            .next()
-            .map(|toplevel| toplevel.wl_surface().clone())
-        {
-            self.keyboard.set_focus(
-                &mut self.server_state,
-                Some(surface.clone()),
-                SERIAL_COUNTER.next_serial(),
-            );
-            self.server_state.set_focused_surface(Some(surface));
+            .any(|window| window.surface == *focused && window.toplevel.alive())
+    }
+
+    fn next_focusable_window(&self) -> Option<WlSurface> {
+        self.server_state
+            .windows
+            .iter()
+            .rev()
+            .find(|window| window.toplevel.alive())
+            .map(|window| window.surface.clone())
+    }
+
+    fn focus_surface(&mut self, surface: WlSurface) {
+        self.keyboard.set_focus(
+            &mut self.server_state,
+            Some(surface.clone()),
+            SERIAL_COUNTER.next_serial(),
+        );
+
+        self.server_state.set_focused_surface(Some(surface));
+        self.server_state.mark_layout_dirty();
+    }
+
+    fn clear_focus(&mut self) {
+        if self.server_state.focused_window.is_none() {
+            return;
         }
+
+        self.keyboard
+            .set_focus(&mut self.server_state, None, SERIAL_COUNTER.next_serial());
+
+        self.server_state.set_focused_surface(None);
+        self.server_state.mark_layout_dirty();
     }
 }
 

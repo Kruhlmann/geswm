@@ -2,6 +2,7 @@ pub mod buffer;
 pub mod compositor;
 pub mod device;
 pub mod dnd;
+pub mod layer_shell;
 pub mod output;
 pub mod seat;
 pub mod selection;

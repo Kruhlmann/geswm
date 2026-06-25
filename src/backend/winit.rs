@@ -55,6 +55,7 @@ where
 {
     pub graphics: WinitGraphicsBackend<Renderer>,
     pub event_loop: WinitEventLoop,
+    pub background_color: Color32F,
     pub surface_transform_pipeline: SurfaceTransformPipeline<Renderer>,
 }
 
@@ -65,8 +66,14 @@ impl WinitBackend<GlesRenderer> {
         Ok(WinitBackend {
             graphics,
             event_loop,
+            background_color: Color32F::new(0.05, 0.05, 0.08, 1.0),
             surface_transform_pipeline: SurfaceTransformPipeline::new(),
         })
+    }
+
+    pub fn set_background_color<C: Into<Color32F>>(mut self, color: C) -> Self {
+        self.background_color = color.into();
+        self
     }
 }
 
@@ -232,9 +239,7 @@ where
                 .render(&mut framebuffer, size, Transform::Flipped180)
                 .unwrap();
 
-            frame
-                .clear(Color32F::new(0.05, 0.05, 0.08, 1.0), &[damage])
-                .unwrap();
+            frame.clear(self.background_color, &[damage]).unwrap();
 
             for item in render_items {
                 let arranged = self

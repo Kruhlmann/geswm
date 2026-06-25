@@ -17,10 +17,6 @@ impl Default for MasterStackLayout {
 }
 
 impl Layout for MasterStackLayout {
-    fn name(&self) -> &'static str {
-        "master-stack"
-    }
-
     fn arrange(&mut self, ctx: &mut LayoutContext<'_>) {
         let count = ctx.windows.len();
 

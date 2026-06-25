@@ -18,7 +18,7 @@ use wayland_server::protocol::wl_surface::WlSurface;
 use crate::{
     output::{OutputDescription, WlOutputAdapter},
     server::{WaylandSocket, WaylandSocketInitError},
-    surface::SurfaceGeometry,
+    surface::{SurfaceGeometry, Window},
 };
 
 pub struct ServerState {
@@ -34,8 +34,8 @@ pub struct ServerState {
     pub seat: Seat<Self>,
     pub socket: WaylandSocket,
     pub output: Option<WlOutputAdapter>,
-    pub geometries: HashMap<WlSurface, SurfaceGeometry>,
-    pub focused_surface: Option<WlSurface>,
+    pub windows: Vec<Window>,
+    pub focused_window: Option<WlSurface>,
     pub layout_dirty: bool,
 }
 
@@ -67,8 +67,8 @@ impl ServerState {
             seat,
             socket,
             output: None,
-            geometries: HashMap::new(),
-            focused_surface: None,
+            windows: Vec::new(),
+            focused_window: None,
             layout_dirty: true,
         })
     }
@@ -77,29 +77,100 @@ impl ServerState {
         self.socket.display_name()
     }
 
+    pub fn add_window(&mut self, window: Window) {
+        self.focused_window = Some(window.surface.clone());
+        self.windows.push(window);
+        self.mark_layout_dirty();
+    }
+
+    pub fn remove_window_for_surface(&mut self, surface: &WlSurface) {
+        self.windows
+            .retain(|window| !window.matches_surface(surface));
+
+        if self
+            .focused_window
+            .as_ref()
+            .is_some_and(|focused| focused == surface)
+        {
+            self.focused_window = self.windows.last().map(|window| window.surface.clone());
+        }
+
+        self.mark_layout_dirty();
+    }
+
+    pub fn window_for_surface(&self, surface: &WlSurface) -> Option<&Window> {
+        self.windows
+            .iter()
+            .find(|window| window.matches_surface(surface))
+    }
+
+    pub fn window_for_surface_mut(&mut self, surface: &WlSurface) -> Option<&mut Window> {
+        self.windows
+            .iter_mut()
+            .find(|window| window.matches_surface(surface))
+    }
+
     pub fn geometry_for_surface(&self, surface: &WlSurface) -> Option<SurfaceGeometry> {
-        self.geometries.get(surface).copied()
+        self.window_for_surface(surface)
+            .map(|window| window.geometry)
     }
 
     pub fn geometry_for_surface_or_default(&self, surface: &WlSurface) -> SurfaceGeometry {
-        self.geometries.get(surface).copied().unwrap_or_else(|| {
+        self.geometry_for_surface(surface).unwrap_or_else(|| {
             tracing::warn!(?surface, "No surface geometry; using default");
             SurfaceGeometry::default()
         })
     }
 
-    pub fn set_geometry_for_surface(&mut self, surface: WlSurface, geometry: SurfaceGeometry) {
-        self.geometries.insert(surface, geometry);
+    pub fn set_geometry_for_surface(&mut self, surface: &WlSurface, geometry: SurfaceGeometry) {
+        match self.window_for_surface_mut(surface) {
+            Some(window) => {
+                window.geometry = geometry;
+            }
+            None => {
+                tracing::warn!(
+                    ?surface,
+                    ?geometry,
+                    "Tried to set geometry for unknown surface"
+                );
+            }
+        }
     }
 
     pub fn is_focused(&self, surface: &WlSurface) -> bool {
-        self.focused_surface
+        self.focused_window
             .as_ref()
             .is_some_and(|focused| focused == surface)
     }
 
     pub fn set_focused_surface(&mut self, surface: Option<WlSurface>) {
-        self.focused_surface = surface;
+        self.focused_window = surface;
+    }
+
+    pub fn focus_window(&mut self, surface: &WlSurface) {
+        if self.window_for_surface(surface).is_none() {
+            tracing::warn!(?surface, "Tried to focus unknown surface");
+            return;
+        }
+        self.focused_window = Some(surface.clone());
+        if let Some(index) = self
+            .windows
+            .iter()
+            .position(|window| window.matches_surface(surface))
+        {
+            let window = self.windows.remove(index);
+            self.windows.push(window);
+        }
+
+        self.mark_layout_dirty();
+    }
+
+    pub fn iter_windows_bottom_to_top(&self) -> impl Iterator<Item = &Window> {
+        self.windows.iter()
+    }
+
+    pub fn iter_windows_top_to_bottom(&self) -> impl Iterator<Item = &Window> {
+        self.windows.iter().rev()
     }
 
     pub fn mark_layout_dirty(&mut self) {

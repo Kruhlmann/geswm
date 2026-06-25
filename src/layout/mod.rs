@@ -18,7 +18,5 @@ pub struct LayoutWindow {
 }
 
 pub trait Layout {
-    fn name(&self) -> &'static str;
-
     fn arrange(&mut self, ctx: &mut LayoutContext<'_>);
 }
