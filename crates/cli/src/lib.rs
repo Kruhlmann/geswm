@@ -1,8 +1,3 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
-
 use geswm::{
     backend::{GesWmBackend, WinitBackend},
     cmd::WmSessionCommand,
@@ -12,16 +7,11 @@ use geswm::{
     layout::MasterStackLayout,
     surface::SurfaceBorderTransformer,
 };
-use signal_hook::{consts::signal::{SIGINT, SIGTERM}, flag};
 
 pub mod cli;
 pub mod log;
 
 pub fn run_server() -> Result<(), Box<dyn std::error::Error>> {
-    let shutdown_requested = Arc::new(AtomicBool::new(false));
-    flag::register(SIGINT, Arc::clone(&shutdown_requested))?;
-    flag::register(SIGTERM, Arc::clone(&shutdown_requested))?;
-
     let keyboard_config = KeyboardConfiguration {
         rules: "evdev",
         model: "pc104",
@@ -46,8 +36,7 @@ pub fn run_server() -> Result<(), Box<dyn std::error::Error>> {
         .bind(XkbKeyCode::D.with_shift(), vec!["rofi", "-show", "drun"])
         .bind(XkbKeyCode::Q.with_shift(), WmSessionCommand::CloseFocused);
 
-    let DaemonExit::Requested(exit_code) =
-        daemon.run_until(|| shutdown_requested.load(Ordering::Relaxed));
+    let DaemonExit::Requested(exit_code) = daemon.run_with_signal_handlers()?;
     tracing::info!(exit_code, "server exited");
     Ok(())
 }

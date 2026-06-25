@@ -3,7 +3,14 @@ pub mod focus;
 pub mod keyboard;
 pub mod mouse;
 
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Instant,
+};
 
 use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
@@ -46,6 +53,12 @@ pub enum DaemonExit {
     Requested(i32),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum DaemonRunError {
+    #[error("signal handler init failure: {0}")]
+    SignalInit(#[from] std::io::Error),
+}
+
 impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
     pub fn new() -> Result<Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout>, DaemonInitError> {
         let display: wayland_server::Display<ServerState> = wayland_server::Display::new()?;
@@ -75,7 +88,22 @@ where
     L: Layout,
 {
     pub fn run(&mut self) -> DaemonExit {
-        self.run_until(|| false)
+        self.run_with_signal_handlers()
+            .expect("signal handler initialization failed")
+    }
+
+    pub fn run_with_signal_handlers(&mut self) -> Result<DaemonExit, DaemonRunError> {
+        let shutdown_requested = Arc::new(AtomicBool::new(false));
+        signal_hook::flag::register(
+            signal_hook::consts::signal::SIGINT,
+            Arc::clone(&shutdown_requested),
+        )?;
+        signal_hook::flag::register(
+            signal_hook::consts::signal::SIGTERM,
+            Arc::clone(&shutdown_requested),
+        )?;
+
+        Ok(self.run_until(|| shutdown_requested.load(Ordering::Relaxed)))
     }
 
     pub fn run_until<F>(&mut self, mut should_exit: F) -> DaemonExit
