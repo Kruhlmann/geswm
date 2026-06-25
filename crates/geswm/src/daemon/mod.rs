@@ -11,7 +11,7 @@ use crate::{
     backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend, WindowSize},
     client::ClientState,
     cmd::{
-        UserCommand,
+        WmSessionCommand,
         executor::{DaemonCommandExecutor, UserCommandExecutor},
     },
     config::KeyboardConfiguration,
@@ -36,7 +36,7 @@ pub struct Daemon<Keyboard, Mouse, Backend, L> {
     backend: Box<Backend>,
     keyboard: Keyboard,
     mouse: Mouse,
-    keybinds: HashMap<KeyBind, UserCommand>,
+    keybinds: HashMap<KeyBind, WmSessionCommand>,
     layout: L,
 }
 
@@ -142,7 +142,7 @@ where
             }
         };
 
-        let mut commands: Vec<Option<UserCommand>> = Vec::new();
+        let mut commands: Vec<Option<WmSessionCommand>> = Vec::new();
         for event in &event_queue {
             let command = match event {
                 BackendEvent::Resize { size, scale } => {
@@ -299,11 +299,15 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
 }
 
 impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
-    pub fn bind_key(
+    pub fn bind<C>(
         mut self,
         keybind: KeyBind,
-        command: UserCommand,
-    ) -> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
+        command: C,
+    ) -> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L>
+    where
+        C: Into<WmSessionCommand>,
+    {
+        let command = command.into();
         if let std::collections::hash_map::Entry::Occupied(..) = self.keybinds.entry(keybind) {
             tracing::warn!("redefining {keybind}: {command}");
         } else {

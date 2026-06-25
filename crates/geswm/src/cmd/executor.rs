@@ -1,9 +1,9 @@
-use crate::cmd::UserCommand;
+use crate::cmd::WmSessionCommand;
 
 pub trait UserCommandExecutor {
     type Error;
 
-    fn execute(&self, _command: &UserCommand) -> Result<(), Self::Error>;
+    fn execute(&self, _command: &WmSessionCommand) -> Result<(), Self::Error>;
 }
 
 pub struct DaemonCommandExecutor {
@@ -43,16 +43,28 @@ impl DaemonCommandExecutor {
             .inspect(|child| tracing::info!(?command, id = child.id(), "spawned process"))?;
         Ok(())
     }
+
+    pub fn show_prompt(_prompt: &str) -> bool {
+        true
+    }
 }
 
 impl UserCommandExecutor for DaemonCommandExecutor {
     type Error = DaemonCommandExecutionError;
 
-    fn execute(&self, command: &UserCommand) -> Result<(), Self::Error> {
+    fn execute(&self, command: &WmSessionCommand) -> Result<(), Self::Error> {
         match command {
-            UserCommand::Spawn(args) => self.exec_spawn(args),
-            UserCommand::Layout(_layout_command) => todo!(),
-            UserCommand::CloseFocused => todo!(),
+            WmSessionCommand::Spawn(args) => self.exec_spawn(args),
+            WmSessionCommand::Layout(_layout_command) => todo!(),
+            WmSessionCommand::CloseFocused => todo!(),
+            WmSessionCommand::ConfirmCommand(prompt, next_command) => {
+                match Self::show_prompt(prompt) {
+                    true => self.execute(next_command),
+                    false => Ok(()),
+                }
+            }
+            WmSessionCommand::GoToWorkSpace(_) => todo!(),
+            WmSessionCommand::MoveFocusedWindowToWorkSpace(_) => todo!(),
         }
     }
 }

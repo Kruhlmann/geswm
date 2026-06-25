@@ -4,12 +4,7 @@ use smithay::{
     utils::SERIAL_COUNTER,
 };
 
-use crate::{
-    cmd::UserCommand,
-    daemon::Daemon,
-    input::KeyBind,
-    server::ServerState,
-};
+use crate::{cmd::WmSessionCommand, daemon::Daemon, input::KeyBind, server::ServerState};
 
 pub type NoKeyboard = ();
 
@@ -19,7 +14,7 @@ pub trait KeyboardHandler {
         _time: u64,
         _key: &Keycode,
         _state: &KeyState,
-    ) -> Option<UserCommand> {
+    ) -> Option<WmSessionCommand> {
         None
     }
 }
@@ -30,8 +25,8 @@ impl<Mouse, Backend, L> KeyboardHandler for Daemon<KeyboardHandle<ServerState>, 
         time: u64,
         key: &Keycode,
         state: &KeyState,
-    ) -> Option<UserCommand> {
-        let mut cmd_to_return: Option<UserCommand> = None;
+    ) -> Option<WmSessionCommand> {
+        let mut cmd_to_return: Option<WmSessionCommand> = None;
         self.keyboard.input(
             &mut self.server_state,
             *key,
