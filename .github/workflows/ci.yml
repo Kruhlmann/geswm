@@ -61,3 +61,4 @@ jobs:
         with:
           registry-token: ${{ steps.auth.outputs.token }}
           ignore-unpublished-changes: true
+          check-repo: false
