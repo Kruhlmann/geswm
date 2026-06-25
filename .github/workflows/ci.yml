@@ -39,6 +39,11 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
+      - name: Install cargo tools
+        run: |
+          cargo install cargo-machete --locked
+          cargo install cargo-audit --locked
+
       - name: Check package
         run: cargo check --locked
 
