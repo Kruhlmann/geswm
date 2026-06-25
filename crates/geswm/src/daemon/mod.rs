@@ -11,8 +11,8 @@ use crate::{
     backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend},
     client::ClientState,
     cmd::{
-        WmSessionCommand,
         executor::{DaemonCommandExecutor, UserCommandExecutor},
+        WmSessionCommand,
     },
     config::KeyboardConfiguration,
     daemon::{
@@ -24,7 +24,7 @@ use crate::{
     input::{KeyBind, UnixSocket},
     layout::{Layout, LayoutWindow, NoLayout},
     server::ServerState,
-    surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize, SurfaceTransformer},
+    surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
 };
 
 pub struct Daemon<Keyboard, Mouse, Backend, L> {
@@ -101,6 +101,8 @@ where
 
     fn arrange_windows(&mut self) {
         let physical_size = self.backend.window_size();
+        self.server_state
+            .set_output_size(physical_size.w, physical_size.h);
         let output_size = SurfaceLogicalSize::from((physical_size.w, physical_size.h));
         let surfaces = self
             .server_state

@@ -2,14 +2,13 @@ use std::time::Instant;
 
 use smithay::{
     backend::{
-        SwapBuffersError,
         egl::EGLSurface,
         renderer::{
-            Bind, Color32F, Frame, ImportDmaWl, ImportMemWl,
             element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer,
-            utils::draw_render_elements,
+            utils::draw_render_elements, Bind, Color32F, Frame, ImportDmaWl, ImportMemWl,
         },
         winit::{self, Error as WinitError, WinitEventLoop, WinitGraphicsBackend},
+        SwapBuffersError,
     },
     utils::{Rectangle, Transform},
     wayland::compositor::{SurfaceAttributes, TraversalAction},
@@ -20,7 +19,7 @@ use crate::{
     server::ServerState,
     surface::{
         ArrangeContext, RenderTransformContext, SurfaceGeometry, SurfacePhysicalPosition,
-        SurfacePhysicalSize, SurfaceTransformPipeline, SurfaceTransformer,
+        SurfacePhysicalSize, SurfaceTransformPipeline,
     },
 };
 
@@ -105,6 +104,7 @@ where
 
         let output_rect =
             crate::surface::SurfaceLogicalRectangle::new((0, 0).into(), (size.w, size.h).into());
+        let output_size = SurfacePhysicalSize::from((size.w, size.h));
 
         {
             let (renderer, mut framebuffer) = self.graphics.bind().unwrap();
@@ -119,7 +119,7 @@ where
                 elements: Vec<WaylandSurfaceRenderElement<Renderer>>,
             }
 
-            let render_items = state
+            let mut render_items = state
                 .xdg_shell_state
                 .toplevel_surfaces()
                 .iter()
@@ -173,6 +173,58 @@ where
                 })
                 .collect::<Vec<_>>();
 
+            render_items.extend(
+                state
+                    .layer_shell_state
+                    .layer_surfaces()
+                    .filter(|surface| surface.alive())
+                    .map(|surface| {
+                        let wl_surface = surface.wl_surface().clone();
+                        let layer_state = surface.current_state();
+                        let layer_size = layer_state.size.unwrap_or_else(|| {
+                            SurfacePhysicalSize::from((640, 480)).to_logical(1)
+                        });
+
+                        let geometry = SurfaceGeometry {
+                            position: (
+                                ((output_size.w - layer_size.w).max(0)) / 2,
+                                ((output_size.h - layer_size.h).max(0)) / 2,
+                            )
+                                .into(),
+                            size: layer_size,
+                        };
+
+                        let arrange_ctx = ArrangeContext {
+                            focused: state.is_focused(surface.wl_surface()),
+                            fullscreen: false,
+                            floating: true,
+                            output_rect,
+                        };
+
+                        let render_position = SurfacePhysicalPosition::from((
+                            geometry.position.x,
+                            geometry.position.y,
+                        ));
+
+                        let elements: Vec<WaylandSurfaceRenderElement<Renderer>> =
+                            smithay::backend::renderer::element::surface::render_elements_from_surface_tree(
+                                renderer,
+                                surface.wl_surface(),
+                                render_position,
+                                1.0,
+                                1.0,
+                                smithay::backend::renderer::element::Kind::Unspecified,
+                            );
+
+                        RenderItem {
+                            surface: wl_surface,
+                            geometry,
+                            arrange_ctx,
+                            elements,
+                        }
+                    }),
+            );
+
             let mut frame = renderer
                 .render(&mut framebuffer, size, Transform::Flipped180)
                 .unwrap();
@@ -220,6 +272,30 @@ where
         }
 
         for surface in state.xdg_shell_state.toplevel_surfaces() {
+            smithay::wayland::compositor::with_surface_tree_downward(
+                surface.wl_surface(),
+                (),
+                |_, _, &()| TraversalAction::DoChildren(()),
+                |_surface, states, &()| {
+                    for callback in states
+                        .cached_state
+                        .get::<SurfaceAttributes>()
+                        .current()
+                        .frame_callbacks
+                        .drain(..)
+                    {
+                        callback.done(epoch.elapsed().as_millis() as u32);
+                    }
+                },
+                |_, _, &()| true,
+            );
+        }
+
+        for surface in state.layer_shell_state.layer_surfaces() {
+            if !surface.alive() {
+                continue;
+            }
+
             smithay::wayland::compositor::with_surface_tree_downward(
                 surface.wl_surface(),
                 (),
