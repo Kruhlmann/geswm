@@ -1,12 +1,18 @@
 [package]
 name = "geswm"
 description = "A wayland compositor just for me"
+authors = ["Andreas Krühlmann <andreas@kruhlmann.dev>"]
 documentation = "https://kruhlmann.dev"
 homepage = "https://kruhlmann.dev"
 repository = "https://github.com/Kruhlmann/geswm"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 license-file = "LICENSE"
+readme = "README.md"
+keywords = ["wayland", "window-manager"]
+categories = ["rendering"]
+exclude = [".github/*", "shell.nix", ".envrc"]
 
 [features]
 default = ["winit"]
