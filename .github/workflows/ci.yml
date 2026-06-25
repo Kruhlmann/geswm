@@ -15,11 +15,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
+      - uses: actions/checkout@v4
+      - run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             libegl1-mesa-dev \
@@ -32,32 +29,16 @@ jobs:
             libxcb-xfixes0-dev \
             libxkbcommon-dev \
             pkg-config
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo tools
-        uses: taiki-e/install-action@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
         with:
           tool: cargo-machete,cargo-audit
-
-      - name: Check package
-        run: cargo check --locked
-
-      - name: Check without default features
-        run: cargo check --no-default-features --locked
-
-      - name: Check simple-wm example
-        run: cargo check --example simple-wm --locked
-
-      - name: Check unused dependencies
-        run: cargo machete
-
-      - name: Audit dependencies
-        run: cargo audit --deny warnings
+      - run: cargo check --locked
+      - run: cargo check --no-default-features --locked
+      - run: cargo check --example simple-wm --locked
+      - run: cargo machete
+      - run: cargo audit --deny warnings
 
   publish:
     name: Publish crate
@@ -70,66 +51,13 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Read crate metadata
-        id: crate
-        run: |
-          metadata="$(cargo metadata --no-deps --format-version 1)"
-
-          name="$(python3 -c '
-          import json, sys
-          data = json.load(sys.stdin)
-          root = data["resolve"]["root"]
-          package = next(p for p in data["packages"] if p["id"] == root)
-          print(package["name"])
-          ' <<< "$metadata")"
-
-          version="$(python3 -c '
-          import json, sys
-          data = json.load(sys.stdin)
-          root = data["resolve"]["root"]
-          package = next(p for p in data["packages"] if p["id"] == root)
-          print(package["version"])
-          ' <<< "$metadata")"
-
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Check whether version is already published
-        id: published
-        run: |
-          name="${{ steps.crate.outputs.name }}"
-          version="${{ steps.crate.outputs.version }}"
-
-          status="$(curl -sS -o /dev/null -w '%{http_code}' \
-            "https://crates.io/api/v1/crates/${name}/${version}")"
-
-          if [ "$status" = "200" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "$name $version is already published"
-          elif [ "$status" = "404" ]; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "$name $version is not published yet"
-          else
-            echo "Unexpected crates.io response: $status" >&2
-            exit 1
-          fi
-
-      - name: Authenticate to crates.io
-        if: steps.published.outputs.exists == 'false'
-        uses: rust-lang/crates-io-auth-action@v1
+      - uses: rust-lang/crates-io-auth-action@v1
         id: auth
 
-      - name: Publish crate
-        if: steps.published.outputs.exists == 'false'
-        run: cargo publish --locked
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+      - uses: katyo/publish-crates@v2
+        with:
+          registry-token: ${{ steps.auth.outputs.token }}
+          ignore-unpublished-changes: true
