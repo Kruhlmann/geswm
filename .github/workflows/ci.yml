@@ -39,8 +39,11 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Check workspace
-        run: cargo check --workspace --locked
+      - name: Check package
+        run: cargo check --locked
 
-      - name: Check geswm without default features
-        run: cargo check -p geswm --no-default-features --locked
+      - name: Check without default features
+        run: cargo check --no-default-features --locked
+
+      - name: Check simple-wm example
+        run: cargo check --example simple-wm --locked

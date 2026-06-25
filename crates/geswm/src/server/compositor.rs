@@ -1,5 +1,5 @@
 use smithay::wayland::compositor::{CompositorClientState, CompositorHandler, CompositorState};
-use wayland_server::{protocol::wl_surface::WlSurface, Client};
+use wayland_server::{Client, protocol::wl_surface::WlSurface};
 
 use crate::{client::ClientState, server::ServerState};
 

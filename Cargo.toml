@@ -1,6 +1,19 @@
-[workspace]
-members = ["crates/*"]
-resolver = "3"
+[package]
+name = "geswm"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["winit"]
+winit = ["dep:winit", "smithay/backend_winit", "smithay/renderer_gl"]
+
+[lib]
+path = "crates/geswm/src/lib.rs"
+
+[[example]]
+name = "simple-wm"
+path = "crates/geswm/examples/simple-wm.rs"
+required-features = ["winit"]
 
 [profile.dev]
 debug = "line-tables-only"
@@ -18,25 +31,14 @@ lto = true
 codegen-units = 1
 panic = "abort"
 
-[workspace.dependencies]
+[dependencies]
 bitflags = "2.13.0"
-clap = { version = "4.6.1", features = ["derive"] }
-geswm = { path = "crates/geswm" }
 lazy_static = "1.5.0"
 signal-hook = "0.3.18"
-smithay = { version = "0.7", default-features = false }
-smithay-client-toolkit = "0.19"
-tempfile = "3.20"
+smithay = { version = "0.7", default-features = false, features = ["wayland_frontend"] }
 thiserror = "2.0.18"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "server"] }
 wayland-server = "0.31"
-winit = { version = "0.30", features = [
-    "wayland",
-    "wayland-dlopen",
-    "x11",
-    "rwh_06",
-] }
+winit = { version = "0.30", features = ["wayland", "wayland-dlopen", "x11", "rwh_06"], optional = true }
 xdg = "3.0.0"

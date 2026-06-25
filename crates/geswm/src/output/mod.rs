@@ -6,7 +6,7 @@ use smithay::{
     wayland::output::WlOutputData,
 };
 use wayland_server::{
-    backend::GlobalId, protocol::wl_output::WlOutput, DisplayHandle, GlobalDispatch,
+    DisplayHandle, GlobalDispatch, backend::GlobalId, protocol::wl_output::WlOutput,
 };
 
 use crate::surface::SurfaceLogicalPosition;

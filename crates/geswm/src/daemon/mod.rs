@@ -6,8 +6,8 @@ pub mod mouse;
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     time::Instant,
 };
@@ -18,8 +18,8 @@ use crate::{
     backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend},
     client::ClientState,
     cmd::{
-        executor::{DaemonCommandExecutor, UserCommandExecutor},
         WmSessionCommand,
+        executor::{DaemonCommandExecutor, UserCommandExecutor},
     },
     config::KeyboardConfiguration,
     daemon::{

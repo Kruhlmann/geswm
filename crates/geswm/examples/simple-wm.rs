@@ -8,6 +8,10 @@ use geswm::{
     surface::SurfaceBorderTransformer,
 };
 
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run_server()
+}
+
 pub fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     let keyboard_config = KeyboardConfiguration {
         rules: "evdev",

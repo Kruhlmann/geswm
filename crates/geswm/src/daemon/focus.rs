@@ -8,7 +8,7 @@ use smithay::{
 };
 
 use crate::{
-    daemon::{keyboard::NoKeyboard, Daemon},
+    daemon::{Daemon, keyboard::NoKeyboard},
     server::ServerState,
 };
 
