@@ -11,7 +11,7 @@ $ cargo new --bin my-wm
 $ cargo add geswm --features winit
 ```
 
-Take a look at the [src/examples](src/examples) directory, or configure your own:
+Take a look at the [examples](./examples) directory, or configure your own:
 
 ```rs
 use geswm::{
