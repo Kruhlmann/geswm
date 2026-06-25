@@ -30,7 +30,7 @@ impl UnixSocket {
             .ok_or(UnixSocketInitError::RuntimeDirNotSet)
             .map(PathBuf::from)?;
 
-        for i in 0..MAX_SOCKET_INDEX {
+        for i in 1..MAX_SOCKET_INDEX {
             let name = format!("{socket_prefix}-{i}");
             let path = runtime_dir.join(&name);
 
