@@ -1,6 +1,6 @@
 # geswm
 
-A tiling wayland compositor just for me
+A tiling wayland compositor
 
 ## Usage
 
@@ -10,6 +10,8 @@ A tiling wayland compositor just for me
 $ cargo new --bin my-wm
 $ cargo add geswm --features winit
 ```
+
+Take a look at the [src/examples](src/examples) directory, or configure your own:
 
 ```rs
 use geswm::{
@@ -22,7 +24,7 @@ use geswm::{
     surface::SurfaceBorderTransformer,
 };
 
-pub fn run_server() -> Result<(), Box<dyn std::error::Error>> {
+pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keyboard_config = KeyboardConfiguration {
         rules: "evdev",
         model: "pc104",
