@@ -49,7 +49,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_initial_layout(MasterStackLayout::default())
         .startup(vec!["wbg", "-s", "examples/bg.png"])
         .bind(Key::Shift | Key::Return, "alacritty")
-        .bind(Key::Shift | Key::B, vec!["wbg", "-s", "examples/bg.png"])
         .bind(Key::Shift | Key::D, vec!["rofi", "-show", "drun"])
         .bind(
             Key::Shift | Key::K,
