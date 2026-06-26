@@ -16,15 +16,18 @@ pub trait FocusHandler {
     fn focus_prev(&mut self) {
         tracing::warn!("FocusHandler::focus_prev called but not implemented");
     }
+    fn clear_focus(&mut self) {
+        tracing::warn!("FocusHandler::clear_focus called but not implemented");
+    }
 }
 
 impl<Mouse, Backend, L> FocusHandler for Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
     fn ensure_a_window_is_focused(&mut self) {
-        if self.clients.is_empty() {
+        if self.server_state.windows.is_empty() {
             return self.clear_focus();
         }
         if !self.focused_window_still_valid() {
-            self.focus_next();
+            self.focus_any();
         }
     }
 
@@ -76,6 +79,16 @@ impl<Mouse, Backend, L> FocusHandler for Daemon<KeyboardHandle<ServerState>, Mou
             }
         }
     }
+
+    fn clear_focus(&mut self) {
+        if self.server_state.focused_window.is_none() {
+            return;
+        }
+        self.keyboard
+            .set_focus(&mut self.server_state, None, SERIAL_COUNTER.next_serial());
+        self.server_state.set_focused_surface(None);
+        self.server_state.mark_layout_dirty();
+    }
 }
 
 impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
@@ -87,7 +100,15 @@ impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
         self.server_state
             .windows
             .iter()
-            .any(|window| window.surface == *focused && window.toplevel.alive())
+            .any(|window| window.surface == *focused && window.is_alive())
+    }
+
+    fn focus_any(&mut self) {
+        if let Some(window) = self.server_state.windows.last() {
+            self.focus_surface(window.surface.clone());
+        } else {
+            self.clear_focus();
+        }
     }
 
     fn focus_surface(&mut self, surface: WlSurface) {
@@ -97,16 +118,6 @@ impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
             SERIAL_COUNTER.next_serial(),
         );
         self.server_state.set_focused_surface(Some(surface));
-        self.server_state.mark_layout_dirty();
-    }
-
-    fn clear_focus(&mut self) {
-        if self.server_state.focused_window.is_none() {
-            return;
-        }
-        self.keyboard
-            .set_focus(&mut self.server_state, None, SERIAL_COUNTER.next_serial());
-        self.server_state.set_focused_surface(None);
         self.server_state.mark_layout_dirty();
     }
 }

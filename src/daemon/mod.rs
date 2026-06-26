@@ -3,11 +3,7 @@ pub mod focus;
 pub mod keyboard;
 pub mod mouse;
 
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Instant,
-};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
@@ -22,8 +18,9 @@ use crate::{
         keyboard::{KeyboardHandler, NoKeyboard},
         mouse::{MouseHandler, NoMouse},
     },
+    input::Key,
     layout::{Layout, LayoutContext, LayoutWindow, NoLayout},
-    server::{ServerState, event::BackendEventHandler},
+    server::{event::BackendEventHandler, ServerState},
     surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
 };
 
@@ -31,7 +28,6 @@ pub struct Daemon<Keyboard, Mouse, Backend, L> {
     server_state: ServerState,
     display: wayland_server::Display<ServerState>,
     epoch: Instant,
-    clients: Vec<wayland_server::Client>,
     backend: Box<Backend>,
     keyboard: Keyboard,
     mouse: Mouse,
@@ -59,7 +55,6 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
             server_state,
             display,
             epoch: Instant::now(),
-            clients: vec![],
             backend: Box::new(()),
             keyboard: (),
             mouse: (),
@@ -76,12 +71,37 @@ where
 {
     pub fn run(&mut self) -> ! {
         loop {
+            self.prune_dead_windows();
             self.handle_new_events();
             self.handle_client_connections();
             self.arrange_windows();
             self.synchronize_clients();
             self.ensure_a_window_is_focused();
             self.backend.render(&self.server_state, &self.epoch);
+        }
+    }
+
+    fn prune_dead_windows(&mut self) {
+        let mut removed_surfaces = Vec::new();
+        self.server_state.windows.retain(|window| {
+            if window.is_alive() {
+                true
+            } else {
+                removed_surfaces.push(window.surface.clone());
+                false
+            }
+        });
+
+        for surface in &removed_surfaces {
+            if let Some(focused_surface) = &self.server_state.focused_window
+                && focused_surface == surface {
+                    self.clear_focus();
+                }
+        }
+
+        if !removed_surfaces.is_empty() {
+            tracing::debug!(?removed_surfaces, "pruned dead windows");
+            self.server_state.mark_layout_dirty();
         }
     }
 
@@ -177,6 +197,50 @@ where
         }
     }
 
+    fn move_focused_window_down(&mut self) {
+        let Some(focused_surface) = self.server_state.focused_window.as_ref() else {
+            return;
+        };
+
+        let Some(index) = self
+            .server_state
+            .windows
+            .iter()
+            .position(|window| &window.surface == focused_surface)
+        else {
+            return;
+        };
+
+        if index == 0 {
+            return;
+        }
+
+        self.server_state.windows.swap(index, index - 1);
+        self.server_state.mark_layout_dirty();
+    }
+
+    fn move_focused_window_up(&mut self) {
+        let Some(focused_surface) = self.server_state.focused_window.as_ref() else {
+            return;
+        };
+
+        let Some(index) = self
+            .server_state
+            .windows
+            .iter()
+            .position(|window| &window.surface == focused_surface)
+        else {
+            return;
+        };
+
+        if index + 1 >= self.server_state.windows.len() {
+            return;
+        }
+
+        self.server_state.windows.swap(index, index + 1);
+        self.server_state.mark_layout_dirty();
+    }
+
     fn exec(&mut self, command: &WmSessionCommand) {
         match command {
             WmSessionCommand::Spawn(cmd) => {
@@ -187,8 +251,10 @@ where
             }
             WmSessionCommand::Layout(LayoutCommand::FocusNext) => self.focus_next(),
             WmSessionCommand::Layout(LayoutCommand::FocusPrev) => self.focus_prev(),
+            WmSessionCommand::Layout(LayoutCommand::SendDown) => self.move_focused_window_down(),
+            WmSessionCommand::Layout(LayoutCommand::SendUp) => self.move_focused_window_up(),
             WmSessionCommand::Layout(_layout_command) => todo!(),
-            WmSessionCommand::CloseFocused => todo!(),
+            WmSessionCommand::CloseFocused => self.close_focused_window(),
             WmSessionCommand::ConfirmCommand(prompt, next_command) => {
                 if WmSessionCommand::show_prompt(prompt) {
                     self.exec(next_command);
@@ -200,14 +266,27 @@ where
         };
     }
 
+    pub fn close_focused_window(&mut self) {
+        let Some(focused) = self.server_state.focused_window.as_ref() else {
+            return;
+        };
+
+        if let Some(window) = self
+            .server_state
+            .windows
+            .iter()
+            .find(|window| window.surface() == focused)
+        {
+            window.close();
+        }
+    }
+
     fn handle_client_connections(&mut self) {
         if let Some(unix_stream) = self.server_state.socket.accept().unwrap() {
-            let client = self
-                .display
+            self.display
                 .handle()
                 .insert_client(unix_stream, Arc::new(ClientState::default()))
                 .unwrap();
-            self.clients.push(client);
         }
     }
 
@@ -228,7 +307,6 @@ impl<Keyboard, Mouse, L> Daemon<Keyboard, Mouse, NoBackend, L> {
             server_state: self.server_state,
             display: self.display,
             epoch: self.epoch,
-            clients: self.clients,
             keyboard: self.keyboard,
             mouse: self.mouse,
             layout: self.layout,
@@ -240,13 +318,11 @@ impl<Keyboard, Mouse, L> Daemon<Keyboard, Mouse, NoBackend, L> {
 
 impl<Keyboard, Backend, L> Daemon<Keyboard, NoMouse, Backend, L> {
     pub fn with_mouse(mut self) -> Daemon<Keyboard, PointerHandle<ServerState>, Backend, L> {
-        tracing::info!("add mouse");
         let mouse = self.server_state.seat.add_pointer();
         Daemon {
             server_state: self.server_state,
             display: self.display,
             epoch: self.epoch,
-            clients: self.clients,
             keyboard: self.keyboard,
             backend: self.backend,
             layout: self.layout,
@@ -262,20 +338,19 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
         config: KeyboardConfiguration,
     ) -> Result<Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L>, DaemonKeyboardInitError>
     {
-        tracing::info!("add keyboard");
-
         let repeat_delay = config.repeat_delay;
         let repeat_rate = config.repeat_rate;
-        let keyboard =
-            self.server_state
-                .seat
-                .add_keyboard(config.into(), repeat_delay, repeat_rate)?;
+        let xkb_config: smithay::input::keyboard::XkbConfig = config.clone().into();
+        let keyboard = self
+            .server_state
+            .seat
+            .add_keyboard(xkb_config, repeat_delay, repeat_rate)
+            .inspect_err(|error| tracing::error!(?error, ?config, "add keyboard"))?;
 
         Ok(Daemon {
             server_state: self.server_state,
             display: self.display,
             epoch: self.epoch,
-            clients: self.clients,
             mouse: self.mouse,
             backend: self.backend,
             layout: self.layout,
@@ -294,7 +369,6 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
             server_state: self.server_state,
             display: self.display,
             epoch: self.epoch,
-            clients: self.clients,
             keyboard: self.keyboard,
             mouse: self.mouse,
             backend: self.backend,
@@ -317,7 +391,7 @@ impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
         if let std::collections::hash_map::Entry::Occupied(..) = self.keybinds.entry(key) {
             tracing::warn!("redefining {key}: {command}");
         } else {
-            tracing::info!("binding {key} to command: {command}");
+            tracing::info!("binding {} to command: {command}", Key::display(key));
         }
         self.keybinds.insert(key, command);
         self

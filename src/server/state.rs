@@ -81,19 +81,41 @@ impl ServerState {
         self.mark_layout_dirty();
     }
 
-    pub fn remove_window_for_surface(&mut self, surface: &WlSurface) {
-        self.windows
-            .retain(|window| !window.matches_surface(surface));
+    pub fn remove_window_by_surface(&mut self, surface: &WlSurface) -> Option<WlSurface> {
+        let removed_index = self
+            .windows
+            .iter()
+            .position(|window| window.surface() == surface)?;
 
-        if self
-            .focused_window
-            .as_ref()
-            .is_some_and(|focused| focused == surface)
-        {
-            self.focused_window = self.windows.last().map(|window| window.surface.clone());
+        let removed_was_focused = self.focused_window.as_ref() == Some(surface);
+
+        self.windows.remove(removed_index);
+
+        let new_focus = if removed_was_focused {
+            self.focus_target_after_removal_prefer_next(removed_index)
+                .map(|window| window.surface().clone())
+        } else {
+            self.focused_window.clone()
+        };
+
+        self.focused_window = new_focus.clone();
+        self.mark_layout_dirty();
+
+        new_focus
+    }
+
+    fn focus_target_after_removal_prefer_next(&self, removed_index: usize) -> Option<&Window> {
+        if self.windows.is_empty() {
+            return None;
         }
 
-        self.mark_layout_dirty();
+        let focus_index = if removed_index < self.windows.len() {
+            removed_index
+        } else {
+            self.windows.len() - 1
+        };
+
+        self.windows.get(focus_index)
     }
 
     pub fn window_for_surface(&self, surface: &WlSurface) -> Option<&Window> {

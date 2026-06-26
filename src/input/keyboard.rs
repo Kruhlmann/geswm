@@ -1,18 +1,14 @@
 use smithay::input::keyboard::ModifiersState;
 
 pub struct Key;
-pub struct KeyMod;
 
 #[allow(non_upper_case_globals)]
-impl KeyMod {
+impl Key {
     pub const Shift: u32 = 0b10000000000000000000000000000000;
     pub const Ctrl: u32 = 0b01000000000000000000000000000000;
     pub const Alt: u32 = 0b00100000000000000000000000000000;
     pub const Super: u32 = 0b00010000000000000000000000000000;
-}
 
-#[allow(non_upper_case_globals)]
-impl Key {
     pub const Empty: u32 = 0;
     pub const Escape: u32 = 9;
     pub const Num1: u32 = 10;
@@ -119,17 +115,39 @@ impl Key {
     pub fn with_modifiers(key: u32, modifiers: &ModifiersState) -> u32 {
         let mut key = key;
         if modifiers.shift {
-            key |= KeyMod::Shift;
+            key |= Key::Shift;
         }
         if modifiers.ctrl {
-            key |= KeyMod::Ctrl;
+            key |= Key::Ctrl;
         }
         if modifiers.alt {
-            key |= KeyMod::Alt;
+            key |= Key::Alt;
         }
         if modifiers.logo {
-            key |= KeyMod::Super;
+            key |= Key::Super;
         }
         key
+    }
+
+    pub fn display(key: u32) -> String {
+        let mut modifiers: Vec<String> = Vec::new();
+        if key & Key::Super != 0 {
+            modifiers.push("Super".to_string());
+        }
+        if key & Key::Alt != 0 {
+            modifiers.push("Alt".to_string());
+        }
+        if key & Key::Ctrl != 0 {
+            modifiers.push("Ctrl".to_string());
+        }
+        if key & Key::Shift != 0 {
+            modifiers.push("Shift".to_string());
+        }
+        let modifiers_str = if modifiers.is_empty() {
+            "".to_string()
+        } else {
+            format!("{}+", modifiers.join("+"))
+        };
+        format!("{}{:#06x}", modifiers_str, key & 0xFFFFFF)
     }
 }

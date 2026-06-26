@@ -2,8 +2,8 @@ use geswm::{
     backend::{GesWmBackend, WinitBackend},
     cmd::{LayoutCommand, WmSessionCommand},
     config::{KeyboardConfiguration, RgbaColor},
-    daemon::{Daemon, DaemonExit},
-    input::{Key, KeyMod},
+    daemon::Daemon,
+    input::Key,
     layout::MasterStackLayout,
     surface::SurfaceBorderTransformer,
 };
@@ -46,16 +46,25 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_backend(backend)
         .with_keyboard(keyboard_config)?
         .with_initial_layout(MasterStackLayout::default())
-        .bind(KeyMod::Shift | Key::Return, vec!["alacritty"])
-        .bind(KeyMod::Shift | Key::D, vec!["rofi", "-show", "drun"])
+        .bind(Key::Shift | Key::Return, vec!["alacritty"])
+        .bind(Key::Shift | Key::D, vec!["rofi", "-show", "drun"])
         .bind(
-            KeyMod::Shift | Key::K,
+            Key::Shift | Key::K,
             WmSessionCommand::Layout(LayoutCommand::FocusPrev),
         )
         .bind(
-            KeyMod::Shift | Key::J,
+            Key::Shift | Key::J,
             WmSessionCommand::Layout(LayoutCommand::FocusNext),
         )
-        .bind(KeyMod::Shift | Key::Q, WmSessionCommand::CloseFocused)
+        .bind(
+            Key::Ctrl | Key::J,
+            WmSessionCommand::Layout(LayoutCommand::SendUp),
+        )
+        .bind(
+            Key::Ctrl | Key::K,
+            WmSessionCommand::Layout(LayoutCommand::SendDown),
+        )
+        .bind(Key::Ctrl | Key::Shift | Key::Q, WmSessionCommand::Exit(0))
+        .bind(Key::Shift | Key::Q, WmSessionCommand::CloseFocused)
         .run();
 }

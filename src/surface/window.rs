@@ -25,7 +25,19 @@ impl Window {
         }
     }
 
+    pub fn surface(&self) -> &WlSurface {
+        &self.surface
+    }
+
     pub fn matches_surface(&self, surface: &WlSurface) -> bool {
         &self.surface == surface
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.toplevel.alive()
+    }
+
+    pub fn close(&self) {
+        self.toplevel.send_close();
     }
 }

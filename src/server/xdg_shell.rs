@@ -35,6 +35,10 @@ impl XdgShellHandler for ServerState {
         surface.send_repositioned(token);
         surface.send_configure().unwrap();
     }
+
+    fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
+        self.remove_window_by_surface(surface.wl_surface());
+    }
 }
 
 smithay::delegate_xdg_shell!(ServerState);
