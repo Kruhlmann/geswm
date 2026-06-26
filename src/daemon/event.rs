@@ -1,11 +1,10 @@
 use crate::{
     backend::{BackendPumpStatus, GesWmBackend},
-    cmd::WmSessionCommand,
+    cmd::Cmd,
     daemon::{
         Daemon, executor::CommandExecutor, focus::FocusHandler, keyboard::KeyboardHandler,
         mouse::MouseHandler,
     },
-    layout::Layout,
     server::{ServerState, event::BackendEventHandler},
 };
 
@@ -17,8 +16,7 @@ impl<Keyboard, Mouse, Backend, L> EventProcessor for Daemon<Keyboard, Mouse, Bac
 where
     Backend: GesWmBackend<ServerState>,
     Daemon<Keyboard, Mouse, Backend, L>:
-        KeyboardHandler + MouseHandler + FocusHandler + CommandExecutor<WmSessionCommand>,
-    L: Layout,
+        KeyboardHandler + MouseHandler + FocusHandler + CommandExecutor<Cmd>,
 {
     fn handle_new_events(&mut self) {
         let mut event_queue = Vec::new();
@@ -33,7 +31,7 @@ where
             }
         };
 
-        let mut commands: Vec<Option<WmSessionCommand>> = Vec::new();
+        let mut commands: Vec<Option<Cmd>> = Vec::new();
         for event in &event_queue {
             commands.push(self.handle_backend_event(event));
         }

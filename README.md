@@ -12,3 +12,4 @@ $ cargo add geswm --features winit
 ```
 
 Take a look at the [examples](./examples) directory to configure your own.
+

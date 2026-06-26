@@ -1,7 +1,7 @@
 use crate::{
     backend::GesWmBackend,
     daemon::{Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler},
-    layout::{Layout, LayoutContext, LayoutWindow},
+    layout::{Layout, LayoutContext, LayoutSet, LayoutWindow},
     server::ServerState,
     surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
 };
@@ -10,11 +10,11 @@ pub trait WindowArranger {
     fn arrange_windows(&mut self);
 }
 
-impl<Keyboard, Mouse, Backend, L> WindowArranger for Daemon<Keyboard, Mouse, Backend, L>
+impl<Keyboard, Mouse, Backend> WindowArranger for Daemon<Keyboard, Mouse, Backend, LayoutSet>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler + MouseHandler + FocusHandler,
-    L: Layout,
+    Daemon<Keyboard, Mouse, Backend, Vec<Box<dyn Layout>>>:
+        KeyboardHandler + MouseHandler + FocusHandler,
 {
     fn arrange_windows(&mut self) {
         self.server_state
@@ -38,7 +38,7 @@ where
             windows: &mut layout_windows,
         };
 
-        self.layout.arrange(&mut ctx);
+        self.get_active_layout().arrange(&mut ctx);
 
         for (window, layout_window) in self
             .server_state

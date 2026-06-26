@@ -1,6 +1,6 @@
 use smithay::{backend::input::ButtonState, input::pointer::PointerHandle};
 
-use crate::{cmd::WmSessionCommand, daemon::Daemon, server::ServerState};
+use crate::{cmd::Cmd, daemon::Daemon, server::ServerState};
 
 pub type NoMouse = ();
 
@@ -10,18 +10,13 @@ pub trait MouseHandler {
         _time: &u64,
         _button: &u32,
         _state: &ButtonState,
-    ) -> Option<WmSessionCommand> {
+    ) -> Option<Cmd> {
         None
     }
-    fn on_mouse_moved_event(
-        &mut self,
-        _time: &u64,
-        _x: &f64,
-        _y: &f64,
-    ) -> Option<WmSessionCommand> {
+    fn on_mouse_moved_event(&mut self, _time: &u64, _x: &f64, _y: &f64) -> Option<Cmd> {
         None
     }
-    fn on_mouse_wheel_event(&mut self, _time: &u64) -> Option<WmSessionCommand> {
+    fn on_mouse_wheel_event(&mut self, _time: &u64) -> Option<Cmd> {
         None
     }
 }
@@ -34,20 +29,15 @@ impl<Keyboard, Backend, L> MouseHandler
         _time: &u64,
         _button: &u32,
         _state: &ButtonState,
-    ) -> Option<WmSessionCommand> {
+    ) -> Option<Cmd> {
         None
     }
 
-    fn on_mouse_moved_event(
-        &mut self,
-        _time: &u64,
-        _x: &f64,
-        _y: &f64,
-    ) -> Option<WmSessionCommand> {
+    fn on_mouse_moved_event(&mut self, _time: &u64, _x: &f64, _y: &f64) -> Option<Cmd> {
         None
     }
 
-    fn on_mouse_wheel_event(&mut self, _time: &u64) -> Option<WmSessionCommand> {
+    fn on_mouse_wheel_event(&mut self, _time: &u64) -> Option<Cmd> {
         None
     }
 }

@@ -37,27 +37,17 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_mouse()
         .with_backend(backend)
         .with_keyboard(keyboard_config)?
-        .with_initial_layout(MasterStackLayout::default())
+        .with_layout(MasterStackLayout::default())
+        .with_layout(MasterStackLayout::new(10))
         .startup(vec!["wbg", "-s", "examples/bg.png"])
         .bind(Key::Shift | Key::Return, "alacritty")
         .bind(Key::Shift | Key::D, vec!["rofi", "-show", "drun"])
-        .bind(
-            Key::Shift | Key::K,
-            WmSessionCommand::Layout(LayoutCommand::FocusPrev),
-        )
-        .bind(
-            Key::Shift | Key::J,
-            WmSessionCommand::Layout(LayoutCommand::FocusNext),
-        )
-        .bind(
-            Key::Ctrl | Key::J,
-            WmSessionCommand::Layout(LayoutCommand::SendUp),
-        )
-        .bind(
-            Key::Ctrl | Key::K,
-            WmSessionCommand::Layout(LayoutCommand::SendDown),
-        )
-        .bind(Key::Ctrl | Key::Shift | Key::Q, WmSessionCommand::Exit(0))
-        .bind(Key::Shift | Key::Q, WmSessionCommand::CloseFocused)
+        .bind(Key::Shift | Key::Tab, Cmd::Layout(LayoutCmd::CycleLayout))
+        .bind(Key::Shift | Key::K, Cmd::Layout(LayoutCmd::FocusPrev))
+        .bind(Key::Shift | Key::J, Cmd::Layout(LayoutCmd::FocusNext))
+        .bind(Key::Ctrl | Key::K, Cmd::Layout(LayoutCmd::SendDown))
+        .bind(Key::Ctrl | Key::J, Cmd::Layout(LayoutCmd::SendUp))
+        .bind(Key::Ctrl | Key::Shift | Key::Q, Cmd::Exit(0))
+        .bind(Key::Shift | Key::Q, Cmd::CloseFocused)
         .run();
 }

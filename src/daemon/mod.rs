@@ -8,13 +8,13 @@ pub mod layout;
 pub mod mouse;
 pub mod window;
 
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap, marker::PhantomData, time::Instant};
 
 use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
 use crate::{
     backend::{GesWmBackend, NoBackend},
-    cmd::WmSessionCommand,
+    cmd::Cmd,
     config::KeyboardConfiguration,
     daemon::{
         client::ClientConnectionManager,
@@ -27,20 +27,22 @@ use crate::{
         mouse::{MouseHandler, NoMouse},
     },
     input::Key,
-    layout::{Layout, NoLayout},
+    layout::{Layout, LayoutSet, LayoutUnset},
     server::ServerState,
 };
 
-pub struct Daemon<Keyboard, Mouse, Backend, L> {
+pub struct Daemon<Keyboard, Mouse, Backend, LayoutSet> {
     server_state: ServerState,
     display: wayland_server::Display<ServerState>,
     epoch: Instant,
     backend: Box<Backend>,
     keyboard: Keyboard,
     mouse: Mouse,
-    startup_commands: Vec<WmSessionCommand>,
-    keybinds: HashMap<u32, WmSessionCommand>,
-    layout: L,
+    startup_commands: Vec<Cmd>,
+    keybinds: HashMap<u32, Cmd>,
+    active_layout: usize,
+    layouts: Vec<Box<dyn Layout>>,
+    has_layout: PhantomData<LayoutSet>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,8 +56,8 @@ pub enum DaemonRunError {
     SignalInit(#[from] std::io::Error),
 }
 
-impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
-    pub fn new() -> Result<Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout>, DaemonInitError> {
+impl Daemon<NoKeyboard, NoMouse, NoBackend, LayoutUnset> {
+    pub fn new() -> Result<Daemon<NoKeyboard, NoMouse, NoBackend, LayoutUnset>, DaemonInitError> {
         let display: wayland_server::Display<ServerState> = wayland_server::Display::new()?;
         let server_state = ServerState::from_display(&display)?;
 
@@ -66,24 +68,25 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
             backend: Box::new(()),
             keyboard: (),
             mouse: (),
-            layout: (),
+            layouts: Vec::new(),
+            active_layout: 0,
             startup_commands: Vec::new(),
             keybinds: HashMap::new(),
+            has_layout: PhantomData,
         })
     }
 }
 
-impl<Keyboard, Mouse, Backend, L> Daemon<Keyboard, Mouse, Backend, L>
+impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, LayoutSet>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler
+    Daemon<Keyboard, Mouse, Backend, LayoutSet>: KeyboardHandler
         + MouseHandler
         + FocusHandler
         + WindowArranger
         + EventProcessor
-        + CommandExecutor<WmSessionCommand>
+        + CommandExecutor<Cmd>
         + ClientConnectionManager,
-    L: Layout,
 {
     pub fn run(&mut self) -> ! {
         self.tick();
@@ -121,7 +124,9 @@ impl<Keyboard, Mouse, L> Daemon<Keyboard, Mouse, NoBackend, L> {
             epoch: self.epoch,
             keyboard: self.keyboard,
             mouse: self.mouse,
-            layout: self.layout,
+            active_layout: self.active_layout,
+            layouts: self.layouts,
+            has_layout: self.has_layout,
             startup_commands: self.startup_commands,
             keybinds: self.keybinds,
             backend: Box::new(backend),
@@ -138,7 +143,9 @@ impl<Keyboard, Backend, L> Daemon<Keyboard, NoMouse, Backend, L> {
             epoch: self.epoch,
             keyboard: self.keyboard,
             backend: self.backend,
-            layout: self.layout,
+            active_layout: self.active_layout,
+            layouts: self.layouts,
+            has_layout: self.has_layout,
             startup_commands: self.startup_commands,
             keybinds: self.keybinds,
             mouse,
@@ -167,7 +174,9 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
             epoch: self.epoch,
             mouse: self.mouse,
             backend: self.backend,
-            layout: self.layout,
+            active_layout: self.active_layout,
+            layouts: self.layouts,
+            has_layout: self.has_layout,
             startup_commands: self.startup_commands,
             keybinds: self.keybinds,
             keyboard,
@@ -175,10 +184,10 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
     }
 }
 
-impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
-    pub fn with_initial_layout<L>(self, layout: L) -> Daemon<Keyboard, Mouse, Backend, L>
+impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, LayoutUnset> {
+    pub fn with_layout<L>(self, layout: L) -> Daemon<Keyboard, Mouse, Backend, LayoutSet>
     where
-        L: Layout,
+        L: Layout + 'static,
     {
         Daemon {
             server_state: self.server_state,
@@ -189,15 +198,34 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
             backend: self.backend,
             startup_commands: self.startup_commands,
             keybinds: self.keybinds,
-            layout,
+            active_layout: self.active_layout,
+            has_layout: PhantomData,
+            layouts: vec![Box::new(layout) as Box<dyn Layout>],
         }
+    }
+}
+
+impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, LayoutSet> {
+    pub fn with_layout<L>(mut self, layout: L) -> Daemon<Keyboard, Mouse, Backend, LayoutSet>
+    where
+        L: Layout + 'static,
+    {
+        self.layouts.push(Box::new(layout));
+        self
+    }
+
+    pub fn get_active_layout(&mut self) -> &mut dyn Layout {
+        self.layouts
+            .get_mut(self.active_layout)
+            .expect("active layout index out of bounds")
+            .as_mut()
     }
 }
 
 impl<Keyboard, Mouse, Backend, L> Daemon<Keyboard, Mouse, Backend, L> {
     pub fn startup<C>(mut self, command: C) -> Daemon<Keyboard, Mouse, Backend, L>
     where
-        C: Into<WmSessionCommand>,
+        C: Into<Cmd>,
     {
         let command = command.into();
         self.startup_commands.push(command);
@@ -212,7 +240,7 @@ impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
         command: C,
     ) -> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L>
     where
-        C: Into<WmSessionCommand>,
+        C: Into<Cmd>,
     {
         let command = command.into();
         if let std::collections::hash_map::Entry::Occupied(..) = self.keybinds.entry(key) {

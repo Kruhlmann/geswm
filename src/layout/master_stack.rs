@@ -10,6 +10,12 @@ pub struct MasterStackLayout {
     pub master_percent: i32,
 }
 
+impl MasterStackLayout {
+    pub fn new(master_percent: i32) -> Self {
+        Self { master_percent }
+    }
+}
+
 impl Default for MasterStackLayout {
     fn default() -> Self {
         Self { master_percent: 50 }

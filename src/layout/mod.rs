@@ -4,7 +4,8 @@ pub use master_stack::*;
 
 use crate::surface::{SurfaceGeometry, SurfaceLogicalSize};
 
-pub type NoLayout = ();
+pub struct LayoutSet;
+pub struct LayoutUnset;
 
 pub struct LayoutContext<'a> {
     pub output_size: SurfaceLogicalSize,
@@ -17,6 +18,6 @@ pub struct LayoutWindow {
     pub focused: bool,
 }
 
-pub trait Layout {
+pub trait Layout: std::fmt::Debug {
     fn arrange(&mut self, ctx: &mut LayoutContext<'_>);
 }

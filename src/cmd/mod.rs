@@ -1,5 +1,5 @@
 #[derive(Debug, Clone)]
-pub enum LayoutCommand {
+pub enum LayoutCmd {
     FocusNext,
     FocusPrev,
     SendToTop,
@@ -14,9 +14,9 @@ pub enum LayoutCommand {
 }
 
 #[derive(Debug, Clone)]
-pub enum WmSessionCommand {
+pub enum Cmd {
     Spawn(Vec<String>),
-    Layout(LayoutCommand),
+    Layout(LayoutCmd),
     CloseFocused,
     ConfirmCommand(String, Box<Self>),
     GoToWorkSpace(u16),
@@ -24,23 +24,23 @@ pub enum WmSessionCommand {
     Exit(i32),
 }
 
-impl From<Vec<&str>> for WmSessionCommand {
+impl From<Vec<&str>> for Cmd {
     fn from(args: Vec<&str>) -> Self {
-        WmSessionCommand::Spawn(args.iter().map(|s| s.to_string()).collect())
+        Cmd::Spawn(args.iter().map(|s| s.to_string()).collect())
     }
 }
 
-impl From<&str> for WmSessionCommand {
+impl From<&str> for Cmd {
     fn from(command: &str) -> Self {
-        WmSessionCommand::Spawn(vec![command.to_string()])
+        Cmd::Spawn(vec![command.to_string()])
     }
 }
 
-impl std::fmt::Display for WmSessionCommand {
+impl std::fmt::Display for Cmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WmSessionCommand::Spawn(args) => write!(f, "Spawn('{}')", args.join(" ")),
-            WmSessionCommand::Layout(layout) => write!(f, "Layout::{layout:?}"),
+            Cmd::Spawn(args) => write!(f, "Spawn('{}')", args.join(" ")),
+            Cmd::Layout(layout) => write!(f, "Layout::{layout:?}"),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -54,7 +54,7 @@ pub enum CommandExecutionError {
     NoCommand,
 }
 
-impl WmSessionCommand {
+impl Cmd {
     pub fn exec_spawn(
         &self,
         command_segments: &Vec<String>,

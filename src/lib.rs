@@ -11,7 +11,7 @@ pub mod surface;
 
 pub mod prelude {
     pub use crate::backend::{GesWmBackend, WinitBackend};
-    pub use crate::cmd::{LayoutCommand, WmSessionCommand};
+    pub use crate::cmd::{Cmd, LayoutCmd};
     pub use crate::config::KeyboardConfiguration;
     pub use crate::daemon::Daemon;
     pub use crate::input::Key;

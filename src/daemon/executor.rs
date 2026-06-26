@@ -1,11 +1,10 @@
 use crate::{
     backend::GesWmBackend,
-    cmd::{LayoutCommand, WmSessionCommand},
+    cmd::{Cmd, LayoutCmd},
     daemon::{
-        Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler,
-        window::WindowManager,
+        Daemon, focus::FocusHandler, keyboard::KeyboardHandler,
+        mouse::MouseHandler, window::WindowManager,
     },
-    layout::Layout,
     server::ServerState,
 };
 
@@ -13,37 +12,32 @@ pub trait CommandExecutor<Cmd> {
     fn execute(&mut self, command: &Cmd);
 }
 
-impl<Keyboard, Mouse, Backend, L> CommandExecutor<WmSessionCommand>
-    for Daemon<Keyboard, Mouse, Backend, L>
+impl<Keyboard, Mouse, Backend, L> CommandExecutor<Cmd> for Daemon<Keyboard, Mouse, Backend, L>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler
-        + MouseHandler
-        + FocusHandler
-        + CommandExecutor<LayoutCommand>
-        + WindowManager,
-    L: Layout,
+    Daemon<Keyboard, Mouse, Backend, L>:
+        MouseHandler + FocusHandler + CommandExecutor<LayoutCmd> + WindowManager,
 {
-    fn execute(&mut self, command: &WmSessionCommand) {
+    fn execute(&mut self, command: &Cmd) {
         match command {
-            WmSessionCommand::Spawn(cmd) => {
+            Cmd::Spawn(cmd) => {
                 command
                     .exec_spawn(cmd, self.server_state.socket_name())
                     .inspect_err(|error| tracing::error!(?error, "spawn failed"))
                     .ok();
             }
-            WmSessionCommand::Layout(layout_command) => {
-                <Self as CommandExecutor<LayoutCommand>>::execute(self, layout_command)
+            Cmd::Layout(layout_command) => {
+                <Self as CommandExecutor<LayoutCmd>>::execute(self, layout_command)
             }
-            WmSessionCommand::CloseFocused => self.close_focused_window(),
-            WmSessionCommand::ConfirmCommand(prompt, next) => {
-                if WmSessionCommand::show_prompt(prompt) {
-                    <Self as CommandExecutor<WmSessionCommand>>::execute(self, next.as_ref());
+            Cmd::CloseFocused => self.close_focused_window(),
+            Cmd::ConfirmCommand(prompt, next) => {
+                if Cmd::show_prompt(prompt) {
+                    <Self as CommandExecutor<Cmd>>::execute(self, next.as_ref());
                 }
             }
-            WmSessionCommand::GoToWorkSpace(_) => todo!(),
-            WmSessionCommand::MoveFocusedWindowToWorkSpace(_) => todo!(),
-            WmSessionCommand::Exit(code) => {
+            Cmd::GoToWorkSpace(_) => todo!(),
+            Cmd::MoveFocusedWindowToWorkSpace(_) => todo!(),
+            Cmd::Exit(code) => {
                 tracing::info!(?code, "external exit request received");
                 std::process::exit(*code);
             }
@@ -51,19 +45,19 @@ where
     }
 }
 
-impl<Keyboard, Mouse, Backend, L> CommandExecutor<LayoutCommand>
-    for Daemon<Keyboard, Mouse, Backend, L>
+impl<Keyboard, Mouse, Backend, L> CommandExecutor<LayoutCmd> for Daemon<Keyboard, Mouse, Backend, L>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler + MouseHandler + FocusHandler,
-    L: Layout,
+    Daemon<Keyboard, Mouse, Backend, L>:
+        KeyboardHandler + MouseHandler + FocusHandler + WindowManager,
 {
-    fn execute(&mut self, command: &LayoutCommand) {
+    fn execute(&mut self, command: &LayoutCmd) {
         match command {
-            LayoutCommand::FocusNext => self.focus_next(),
-            LayoutCommand::FocusPrev => self.focus_prev(),
-            LayoutCommand::SendDown => self.move_focused_window_down(),
-            LayoutCommand::SendUp => self.move_focused_window_up(),
+            LayoutCmd::FocusNext => self.focus_next(),
+            LayoutCmd::FocusPrev => self.focus_prev(),
+            LayoutCmd::SendDown => self.move_focused_window_down(),
+            LayoutCmd::SendUp => self.move_focused_window_up(),
+            LayoutCmd::CycleLayout => self.cycle_layout(),
             _ => todo!(),
         };
     }

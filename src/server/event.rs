@@ -1,13 +1,12 @@
 use crate::{
     backend::{BackendEvent, GesWmBackend, InputEvent},
-    cmd::WmSessionCommand,
+    cmd::Cmd,
     daemon::{Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler},
-    layout::Layout,
     server::ServerState,
 };
 
 pub trait BackendEventHandler {
-    fn handle_backend_event(&mut self, _event: &BackendEvent) -> Option<WmSessionCommand> {
+    fn handle_backend_event(&mut self, _event: &BackendEvent) -> Option<Cmd> {
         tracing::warn!("BackendEventHandler::handle_backend_event called but not implemented");
         None
     }
@@ -17,9 +16,8 @@ impl<Keyboard, Mouse, Backend: GesWmBackend<ServerState>, L> BackendEventHandler
     for Daemon<Keyboard, Mouse, Backend, L>
 where
     Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler + MouseHandler + FocusHandler,
-    L: Layout,
 {
-    fn handle_backend_event(&mut self, event: &BackendEvent) -> Option<WmSessionCommand> {
+    fn handle_backend_event(&mut self, event: &BackendEvent) -> Option<Cmd> {
         match event {
             BackendEvent::Resize { size, scale } => {
                 tracing::info!("resized event: {size:?} scale: {scale:?}");
@@ -46,7 +44,7 @@ where
                 tracing::info!("redraw event");
                 None
             }
-            BackendEvent::CloseRequested => Some(WmSessionCommand::Exit(0)),
+            BackendEvent::CloseRequested => Some(Cmd::Exit(0)),
         }
     }
 }

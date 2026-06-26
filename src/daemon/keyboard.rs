@@ -4,29 +4,19 @@ use smithay::{
     utils::SERIAL_COUNTER,
 };
 
-use crate::{cmd::WmSessionCommand, daemon::Daemon, input::Key, server::ServerState};
+use crate::{cmd::Cmd, daemon::Daemon, input::Key, server::ServerState};
 
 pub type NoKeyboard = ();
 
 pub trait KeyboardHandler {
-    fn on_keyboard_event(
-        &mut self,
-        _time: u64,
-        _key: &Keycode,
-        _state: &KeyState,
-    ) -> Option<WmSessionCommand> {
+    fn on_keyboard_event(&mut self, _time: u64, _key: &Keycode, _state: &KeyState) -> Option<Cmd> {
         None
     }
 }
 
 impl<Mouse, Backend, L> KeyboardHandler for Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
-    fn on_keyboard_event(
-        &mut self,
-        time: u64,
-        key: &Keycode,
-        state: &KeyState,
-    ) -> Option<WmSessionCommand> {
-        let mut cmd_to_return: Option<WmSessionCommand> = None;
+    fn on_keyboard_event(&mut self, time: u64, key: &Keycode, state: &KeyState) -> Option<Cmd> {
+        let mut cmd_to_return: Option<Cmd> = None;
         self.keyboard.input(
             &mut self.server_state,
             *key,
