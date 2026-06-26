@@ -2,7 +2,7 @@ use smithay::{input::keyboard::KeyboardHandle, utils::SERIAL_COUNTER};
 use wayland_server::protocol::wl_surface::WlSurface;
 
 use crate::{
-    daemon::{keyboard::NoKeyboard, Daemon},
+    daemon::{Daemon, keyboard::NoKeyboard},
     server::ServerState,
 };
 
@@ -19,9 +19,59 @@ pub trait FocusHandler {
     fn clear_focus(&mut self) {
         tracing::warn!("FocusHandler::clear_focus called but not implemented");
     }
+    fn move_focused_window_down(&mut self) {
+        tracing::warn!("FocusHandler::move_focused_window_down called but not implemented");
+    }
+    fn move_focused_window_up(&mut self) {
+        tracing::warn!("FocusHandler::move_focused_window_up called but not implemented");
+    }
 }
 
 impl<Mouse, Backend, L> FocusHandler for Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
+    fn move_focused_window_down(&mut self) {
+        let Some(focused_surface) = self.server_state.focused_window.as_ref() else {
+            return;
+        };
+
+        let Some(index) = self
+            .server_state
+            .windows
+            .iter()
+            .position(|window| &window.surface == focused_surface)
+        else {
+            return;
+        };
+
+        if index == 0 {
+            return;
+        }
+
+        self.server_state.windows.swap(index, index - 1);
+        self.server_state.mark_layout_dirty();
+    }
+
+    fn move_focused_window_up(&mut self) {
+        let Some(focused_surface) = self.server_state.focused_window.as_ref() else {
+            return;
+        };
+
+        let Some(index) = self
+            .server_state
+            .windows
+            .iter()
+            .position(|window| &window.surface == focused_surface)
+        else {
+            return;
+        };
+
+        if index + 1 >= self.server_state.windows.len() {
+            return;
+        }
+
+        self.server_state.windows.swap(index, index + 1);
+        self.server_state.mark_layout_dirty();
+    }
+
     fn ensure_a_window_is_focused(&mut self) {
         if self.server_state.windows.is_empty() {
             return self.clear_focus();

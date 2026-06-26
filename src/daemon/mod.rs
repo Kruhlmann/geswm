@@ -1,6 +1,8 @@
 pub mod error;
+pub mod event;
 pub mod focus;
 pub mod keyboard;
+pub mod layout;
 pub mod mouse;
 
 use std::{collections::HashMap, sync::Arc, time::Instant};
@@ -8,20 +10,21 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
 use crate::{
-    backend::{BackendPumpStatus, GesWmBackend, NoBackend},
+    backend::{GesWmBackend, NoBackend},
     client::ClientState,
     cmd::{LayoutCommand, WmSessionCommand},
     config::KeyboardConfiguration,
     daemon::{
         error::{DaemonInitError, DaemonKeyboardInitError},
+        event::EventProcessor,
         focus::FocusHandler,
         keyboard::{KeyboardHandler, NoKeyboard},
+        layout::WindowArranger,
         mouse::{MouseHandler, NoMouse},
     },
     input::Key,
-    layout::{Layout, LayoutContext, LayoutWindow, NoLayout},
-    server::{event::BackendEventHandler, ServerState},
-    surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
+    layout::{Layout, NoLayout},
+    server::ServerState,
 };
 
 pub struct Daemon<Keyboard, Mouse, Backend, L> {
@@ -64,9 +67,11 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
     }
 }
 
-impl<Keyboard, Mouse, Backend: GesWmBackend<ServerState>, L> Daemon<Keyboard, Mouse, Backend, L>
+impl<Keyboard, Mouse, Backend, L> Daemon<Keyboard, Mouse, Backend, L>
 where
-    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler + MouseHandler + FocusHandler,
+    Backend: GesWmBackend<ServerState>,
+    Daemon<Keyboard, Mouse, Backend, L>:
+        KeyboardHandler + MouseHandler + FocusHandler + WindowArranger + EventProcessor,
     L: Layout,
 {
     pub fn run(&mut self) -> ! {
@@ -94,151 +99,16 @@ where
 
         for surface in &removed_surfaces {
             if let Some(focused_surface) = &self.server_state.focused_window
-                && focused_surface == surface {
-                    self.clear_focus();
-                }
+                && focused_surface == surface
+            {
+                self.clear_focus();
+            }
         }
 
         if !removed_surfaces.is_empty() {
             tracing::debug!(?removed_surfaces, "pruned dead windows");
             self.server_state.mark_layout_dirty();
         }
-    }
-
-    fn arrange_windows(&mut self) {
-        self.server_state
-            .sync_output(self.backend.output_description());
-
-        let physical_size = self.backend.window_size();
-        let output_size = SurfaceLogicalSize::from((physical_size.w, physical_size.h));
-
-        let mut layout_windows = self
-            .server_state
-            .windows
-            .iter()
-            .map(|window| LayoutWindow {
-                geometry: window.geometry,
-                focused: self.server_state.is_focused(&window.surface),
-            })
-            .collect::<Vec<_>>();
-
-        let mut ctx = LayoutContext {
-            output_size,
-            windows: &mut layout_windows,
-        };
-
-        self.layout.arrange(&mut ctx);
-
-        for (window, layout_window) in self
-            .server_state
-            .windows
-            .iter_mut()
-            .zip(layout_windows.into_iter())
-        {
-            let outer_geometry = layout_window.geometry;
-            window.geometry = outer_geometry;
-
-            let arrange_ctx = ArrangeContext {
-                focused: layout_window.focused,
-                fullscreen: false,
-                floating: false,
-                output_rect: SurfaceLogicalRectangle::new((0, 0).into(), output_size),
-            };
-
-            let run = self
-                .backend
-                .surface_transform_pipeline()
-                .begin(outer_geometry, arrange_ctx)
-                .arrange();
-
-            let configure_size = run.configure_size();
-
-            let width = configure_size.w.max(1);
-            let height = configure_size.h.max(1);
-            let size = (width, height).into();
-
-            let size_changed = window.toplevel.with_pending_state(|state| {
-                state
-                    .size
-                    .replace(size)
-                    .map(|old| old != size)
-                    .unwrap_or(true)
-            });
-
-            if size_changed {
-                tracing::debug!(?window, "window size changed");
-                window.toplevel.send_configure();
-            }
-        }
-
-        self.server_state.layout_dirty = false;
-    }
-
-    fn handle_new_events(&mut self) {
-        let mut event_queue = Vec::new();
-        match self
-            .backend
-            .dispatch_new_events(|event| event_queue.push(event))
-        {
-            BackendPumpStatus::Continue => {}
-            BackendPumpStatus::Exit(exit_code) => {
-                tracing::info!(?exit_code, "event loop exited");
-                std::process::exit(exit_code);
-            }
-        };
-
-        let mut commands: Vec<Option<WmSessionCommand>> = Vec::new();
-        for event in &event_queue {
-            commands.push(self.handle_backend_event(event));
-        }
-
-        for command in commands.into_iter().flatten() {
-            self.exec(&command);
-        }
-    }
-
-    fn move_focused_window_down(&mut self) {
-        let Some(focused_surface) = self.server_state.focused_window.as_ref() else {
-            return;
-        };
-
-        let Some(index) = self
-            .server_state
-            .windows
-            .iter()
-            .position(|window| &window.surface == focused_surface)
-        else {
-            return;
-        };
-
-        if index == 0 {
-            return;
-        }
-
-        self.server_state.windows.swap(index, index - 1);
-        self.server_state.mark_layout_dirty();
-    }
-
-    fn move_focused_window_up(&mut self) {
-        let Some(focused_surface) = self.server_state.focused_window.as_ref() else {
-            return;
-        };
-
-        let Some(index) = self
-            .server_state
-            .windows
-            .iter()
-            .position(|window| &window.surface == focused_surface)
-        else {
-            return;
-        };
-
-        if index + 1 >= self.server_state.windows.len() {
-            return;
-        }
-
-        self.server_state.windows.swap(index, index + 1);
-        self.server_state.mark_layout_dirty();
     }
 
     fn exec(&mut self, command: &WmSessionCommand) {

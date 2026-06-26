@@ -6,7 +6,7 @@ use smithay::{
         selection::data_device::DataDeviceState,
         shell::{
             wlr_layer::WlrLayerShellState,
-            xdg::{decoration::XdgDecorationState, XdgShellState},
+            xdg::{XdgShellState, decoration::XdgDecorationState},
         },
         shm::ShmState,
     },

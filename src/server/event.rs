@@ -1,7 +1,7 @@
 use crate::{
     backend::{BackendEvent, GesWmBackend, InputEvent},
     cmd::WmSessionCommand,
-    daemon::{focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler, Daemon},
+    daemon::{Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler},
     layout::Layout,
     server::ServerState,
 };
