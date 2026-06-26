@@ -30,12 +30,9 @@ where
                 <Self as CommandExecutor<LayoutCommand>>::execute(self, layout_command)
             }
             WmSessionCommand::CloseFocused => self.close_focused_window(),
-            WmSessionCommand::ConfirmCommand(prompt, next_command) => {
+            WmSessionCommand::ConfirmCommand(prompt, next) => {
                 if WmSessionCommand::show_prompt(prompt) {
-                    <Self as CommandExecutor<WmSessionCommand>>::execute(
-                        self,
-                        next_command.as_ref(),
-                    );
+                    <Self as CommandExecutor<WmSessionCommand>>::execute(self, next.as_ref());
                 }
             }
             WmSessionCommand::GoToWorkSpace(_) => todo!(),
