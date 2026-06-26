@@ -40,13 +40,16 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let backend = WinitBackend::new_gles_renderer()?
         .add_transformer(border_transformer)
-        .set_background_color(RgbaColor::from_hex("#211317"));
+        .set_background_color(RgbaColor::from_hex("#211317"))
+        .set_refresh_rate(60.0);
     Daemon::new()?
         .with_mouse()
         .with_backend(backend)
         .with_keyboard(keyboard_config)?
         .with_initial_layout(MasterStackLayout::default())
-        .bind(Key::Shift | Key::Return, vec!["alacritty"])
+        .startup(vec!["wbg", "-s", "examples/bg.png"])
+        .bind(Key::Shift | Key::Return, "alacritty")
+        .bind(Key::Shift | Key::B, vec!["wbg", "-s", "examples/bg.png"])
         .bind(Key::Shift | Key::D, vec!["rofi", "-show", "drun"])
         .bind(
             Key::Shift | Key::K,

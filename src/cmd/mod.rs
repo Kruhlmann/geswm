@@ -73,6 +73,7 @@ impl WmSessionCommand {
             .stderr(std::process::Stdio::null())
             .spawn()
             .map_err(CommandExecutionError::SpawnError)
+            .inspect_err(|error| tracing::error!(?command, ?error, "failed to spawn process"))
             .inspect(|child| tracing::info!(?command, id = child.id(), "spawned process"))?;
         Ok(())
     }

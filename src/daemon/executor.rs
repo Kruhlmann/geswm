@@ -1,7 +1,10 @@
 use crate::{
     backend::GesWmBackend,
     cmd::{LayoutCommand, WmSessionCommand},
-    daemon::{Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler},
+    daemon::{
+        Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler,
+        window::WindowManager,
+    },
     layout::Layout,
     server::ServerState,
 };
@@ -14,8 +17,11 @@ impl<Keyboard, Mouse, Backend, L> CommandExecutor<WmSessionCommand>
     for Daemon<Keyboard, Mouse, Backend, L>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>:
-        KeyboardHandler + MouseHandler + FocusHandler + CommandExecutor<LayoutCommand>,
+    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler
+        + MouseHandler
+        + FocusHandler
+        + CommandExecutor<LayoutCommand>
+        + WindowManager,
     L: Layout,
 {
     fn execute(&mut self, command: &WmSessionCommand) {

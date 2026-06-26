@@ -57,6 +57,7 @@ where
     pub event_loop: WinitEventLoop,
     pub background_color: Color32F,
     pub surface_transform_pipeline: SurfaceTransformPipeline<Renderer>,
+    pub refresh_rate: i32,
 }
 
 impl WinitBackend<GlesRenderer> {
@@ -68,10 +69,19 @@ impl WinitBackend<GlesRenderer> {
             event_loop,
             background_color: Color32F::new(0.05, 0.05, 0.08, 1.0),
             surface_transform_pipeline: SurfaceTransformPipeline::new(),
+            refresh_rate: 60_000,
         })
     }
 
-    pub fn set_background_color<C: Into<Color32F>>(mut self, color: C) -> Self {
+    pub fn set_refresh_rate(mut self, hz: f32) -> Self {
+        let mhz = (hz.floor() as i32) * 1000;
+        tracing::info!("setting refresh rate to {} Hz ({} mhz)", hz, mhz);
+        self.refresh_rate = mhz;
+        self
+    }
+
+    pub fn set_background_color<C: Into<Color32F> + std::fmt::Display>(mut self, color: C) -> Self {
+        tracing::info!("setting background color to {}", color);
         self.background_color = color.into();
         self
     }
@@ -334,6 +344,6 @@ where
 {
     fn output_description(&self) -> OutputDescription {
         let size = self.graphics.window_size();
-        OutputDescription::virtual_output("geswm-winit-0", size.w, size.h)
+        OutputDescription::virtual_output("geswm-winit-0", size.w, size.h, self.refresh_rate)
     }
 }

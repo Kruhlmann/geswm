@@ -15,6 +15,19 @@ impl From<RgbaColor> for Color32F {
     }
 }
 
+impl std::fmt::Display for RgbaColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "0x{:02X}{:02X}{:02X}{:02X}",
+            (self.0[0] * 255.0) as u8,
+            (self.0[1] * 255.0) as u8,
+            (self.0[2] * 255.0) as u8,
+            (self.0[3] * 255.0) as u8
+        )
+    }
+}
+
 impl RgbaColor {
     pub fn from_hex(hex: &str) -> Self {
         let hex = hex.trim_start_matches('#');

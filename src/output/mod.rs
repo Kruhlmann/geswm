@@ -28,11 +28,16 @@ pub struct OutputDescription {
 
 impl OutputDescription {
     #[cfg(feature = "winit")]
-    pub fn virtual_output(name: impl Into<String>, width: i32, height: i32) -> Self {
+    pub fn virtual_output(
+        name: impl Into<String>,
+        width: i32,
+        height: i32,
+        refresh_rate: i32,
+    ) -> Self {
         Self {
             name: name.into(),
             physical_properties: PhysicalProperties {
-                size: (340, 190).into(),
+                size: (width, height).into(),
                 subpixel: Subpixel::Unknown,
                 make: "geswm".into(),
                 model: "virtual".into(),
@@ -40,7 +45,7 @@ impl OutputDescription {
             state: OutputState {
                 mode: Mode {
                     size: (width, height).into(),
-                    refresh: 60_000,
+                    refresh: refresh_rate,
                 },
                 scale: Scale::Integer(1),
                 transform: Transform::Normal,
@@ -75,13 +80,6 @@ impl WlOutputAdapter {
             _global_id: global_id,
             inner,
         }
-    }
-
-    pub fn set_size(&mut self, width: i32, height: i32) {
-        self.set_mode(Mode {
-            size: (width, height).into(),
-            refresh: 60_000,
-        });
     }
 
     pub fn set_mode(&mut self, mode: Mode) {

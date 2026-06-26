@@ -1,3 +1,4 @@
+pub mod client;
 pub mod error;
 pub mod event;
 pub mod executor;
@@ -5,19 +6,21 @@ pub mod focus;
 pub mod keyboard;
 pub mod layout;
 pub mod mouse;
+pub mod window;
 
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{collections::HashMap, time::Instant};
 
 use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
 use crate::{
     backend::{GesWmBackend, NoBackend},
-    client::ClientState,
     cmd::WmSessionCommand,
     config::KeyboardConfiguration,
     daemon::{
+        client::ClientConnectionManager,
         error::{DaemonInitError, DaemonKeyboardInitError},
         event::EventProcessor,
+        executor::CommandExecutor,
         focus::FocusHandler,
         keyboard::{KeyboardHandler, NoKeyboard},
         layout::WindowArranger,
@@ -35,6 +38,7 @@ pub struct Daemon<Keyboard, Mouse, Backend, L> {
     backend: Box<Backend>,
     keyboard: Keyboard,
     mouse: Mouse,
+    startup_commands: Vec<WmSessionCommand>,
     keybinds: HashMap<u32, WmSessionCommand>,
     layout: L,
 }
@@ -63,6 +67,7 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
             keyboard: (),
             mouse: (),
             layout: (),
+            startup_commands: Vec::new(),
             keybinds: HashMap::new(),
         })
     }
@@ -71,51 +76,37 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
 impl<Keyboard, Mouse, Backend, L> Daemon<Keyboard, Mouse, Backend, L>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>:
-        KeyboardHandler + MouseHandler + FocusHandler + WindowArranger + EventProcessor,
+    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler
+        + MouseHandler
+        + FocusHandler
+        + WindowArranger
+        + EventProcessor
+        + CommandExecutor<WmSessionCommand>
+        + ClientConnectionManager,
     L: Layout,
 {
     pub fn run(&mut self) -> ! {
+        self.tick();
+        for command in self.startup_commands.clone() {
+            tracing::info!("executing startup command: {command}");
+            self.execute(&command);
+        }
         loop {
-            self.server_state.prune();
-            self.handle_new_events();
-            self.handle_client_connections();
-            self.arrange_windows();
-            self.synchronize_clients();
-            self.ensure_a_window_is_focused();
-            self.backend.render(&self.server_state, &self.epoch);
+            self.tick()
         }
     }
 
-    pub fn close_focused_window(&mut self) {
-        let Some(focused) = self.server_state.focused_window.as_ref() else {
-            return;
-        };
-
-        if let Some(window) = self
-            .server_state
-            .windows
-            .iter()
-            .find(|window| window.surface() == focused)
-        {
-            window.close();
-        }
-    }
-
-    fn handle_client_connections(&mut self) {
-        if let Some(unix_stream) = self.server_state.socket.accept().unwrap() {
-            self.display
-                .handle()
-                .insert_client(unix_stream, Arc::new(ClientState::default()))
-                .unwrap();
-        }
-    }
-
-    fn synchronize_clients(&mut self) {
+    pub fn tick(&mut self) {
+        self.server_state.prune();
+        self.handle_new_events();
+        self.handle_client_connections();
+        self.arrange_windows();
+        self.ensure_a_window_is_focused();
         self.display
             .dispatch_clients(&mut self.server_state)
             .unwrap();
         self.display.flush_clients().unwrap();
+        self.backend.render(&self.server_state, &self.epoch);
     }
 }
 
@@ -131,6 +122,7 @@ impl<Keyboard, Mouse, L> Daemon<Keyboard, Mouse, NoBackend, L> {
             keyboard: self.keyboard,
             mouse: self.mouse,
             layout: self.layout,
+            startup_commands: self.startup_commands,
             keybinds: self.keybinds,
             backend: Box::new(backend),
         }
@@ -147,6 +139,7 @@ impl<Keyboard, Backend, L> Daemon<Keyboard, NoMouse, Backend, L> {
             keyboard: self.keyboard,
             backend: self.backend,
             layout: self.layout,
+            startup_commands: self.startup_commands,
             keybinds: self.keybinds,
             mouse,
         }
@@ -175,6 +168,7 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
             mouse: self.mouse,
             backend: self.backend,
             layout: self.layout,
+            startup_commands: self.startup_commands,
             keybinds: self.keybinds,
             keyboard,
         })
@@ -193,9 +187,21 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
             keyboard: self.keyboard,
             mouse: self.mouse,
             backend: self.backend,
+            startup_commands: self.startup_commands,
             keybinds: self.keybinds,
             layout,
         }
+    }
+}
+
+impl<Keyboard, Mouse, Backend, L> Daemon<Keyboard, Mouse, Backend, L> {
+    pub fn startup<C>(mut self, command: C) -> Daemon<Keyboard, Mouse, Backend, L>
+    where
+        C: Into<WmSessionCommand>,
+    {
+        let command = command.into();
+        self.startup_commands.push(command);
+        self
     }
 }
 
