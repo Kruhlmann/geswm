@@ -2,9 +2,10 @@ use crate::{
     backend::GesWmBackend,
     cmd::{Cmd, LayoutCmd},
     daemon::{
-        Daemon, focus::FocusHandler, keyboard::KeyboardHandler,
-        mouse::MouseHandler, window::WindowManager,
+        Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler,
+        window::WindowManager,
     },
+    layout::LayoutSet,
     server::ServerState,
 };
 
@@ -45,10 +46,11 @@ where
     }
 }
 
-impl<Keyboard, Mouse, Backend, L> CommandExecutor<LayoutCmd> for Daemon<Keyboard, Mouse, Backend, L>
+impl<Keyboard, Mouse, Backend> CommandExecutor<LayoutCmd>
+    for Daemon<Keyboard, Mouse, Backend, LayoutSet>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>:
+    Daemon<Keyboard, Mouse, Backend, LayoutSet>:
         KeyboardHandler + MouseHandler + FocusHandler + WindowManager,
 {
     fn execute(&mut self, command: &LayoutCmd) {
@@ -58,6 +60,8 @@ where
             LayoutCmd::SendDown => self.move_focused_window_down(),
             LayoutCmd::SendUp => self.move_focused_window_up(),
             LayoutCmd::CycleLayout => self.cycle_layout(),
+            LayoutCmd::Grow => self.get_active_layout().grow(),
+            LayoutCmd::Shrink => self.get_active_layout().shrink(),
             _ => todo!(),
         };
     }

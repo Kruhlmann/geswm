@@ -43,6 +43,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .bind(Key::Shift | Key::Return, "alacritty")
         .bind(Key::Shift | Key::D, vec!["rofi", "-show", "drun"])
         .bind(Key::Shift | Key::Tab, Cmd::Layout(LayoutCmd::CycleLayout))
+        .bind(Key::Shift | Key::H, Cmd::Layout(LayoutCmd::Shrink))
+        .bind(Key::Shift | Key::L, Cmd::Layout(LayoutCmd::Grow))
         .bind(Key::Shift | Key::K, Cmd::Layout(LayoutCmd::FocusPrev))
         .bind(Key::Shift | Key::J, Cmd::Layout(LayoutCmd::FocusNext))
         .bind(Key::Ctrl | Key::K, Cmd::Layout(LayoutCmd::SendDown))

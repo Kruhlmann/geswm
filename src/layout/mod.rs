@@ -18,6 +18,14 @@ pub struct LayoutWindow {
     pub focused: bool,
 }
 
-pub trait Layout: std::fmt::Debug {
+pub trait Shrinkable {
+    fn shrink(&mut self) {}
+}
+
+pub trait Growable {
+    fn grow(&mut self) {}
+}
+
+pub trait Layout: std::fmt::Debug + Shrinkable + Growable {
     fn arrange(&mut self, ctx: &mut LayoutContext<'_>);
 }

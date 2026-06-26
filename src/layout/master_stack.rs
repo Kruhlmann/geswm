@@ -1,7 +1,7 @@
 use smithay::utils::{Point, Size};
 
 use crate::{
-    layout::{Layout, LayoutContext},
+    layout::{Growable, Layout, LayoutContext, Shrinkable},
     surface::SurfaceGeometry,
 };
 
@@ -13,6 +13,18 @@ pub struct MasterStackLayout {
 impl MasterStackLayout {
     pub fn new(master_percent: i32) -> Self {
         Self { master_percent }
+    }
+}
+
+impl Shrinkable for MasterStackLayout {
+    fn shrink(&mut self) {
+        self.master_percent = (self.master_percent - 5).max(10);
+    }
+}
+
+impl Growable for MasterStackLayout {
+    fn grow(&mut self) {
+        self.master_percent = (self.master_percent + 5).min(90);
     }
 }
 
