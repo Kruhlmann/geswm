@@ -1,18 +1,65 @@
 use smithay::utils::{Point, Size};
 
 use crate::{
-    layout::{Growable, Layout, LayoutContext, Shrinkable},
+    layout::{Growable, Layout, LayoutContext, LayoutWindow, MasterWindow, Shrinkable},
     surface::SurfaceGeometry,
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct MasterStackLayout {
     pub master_percent: i32,
+    pub master_count: usize,
 }
 
 impl MasterStackLayout {
     pub fn new(master_percent: i32) -> Self {
-        Self { master_percent }
+        Self {
+            master_percent,
+            master_count: 2,
+        }
+    }
+
+    pub fn arrange_vertical_stack(
+        windows: &mut [LayoutWindow],
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) {
+        let count = windows.len();
+
+        if count == 0 {
+            return;
+        }
+
+        let base_h = height / count as i32;
+
+        for (index, window) in windows.iter_mut().enumerate() {
+            let window_y = y + index as i32 * base_h;
+
+            let window_h = if index == count - 1 {
+                height - (window_y - y)
+            } else {
+                base_h
+            };
+
+            window.geometry = SurfaceGeometry {
+                position: Point::from((x, window_y)),
+                size: Size::from((width, window_h)),
+            };
+        }
+    }
+}
+
+impl MasterWindow for MasterStackLayout {
+    fn increase_master_count(&mut self) {
+        self.master_count += 1;
+    }
+
+    fn decrease_master_count(&mut self) {
+        if self.master_count > 0 {
+            self.master_count -= 1;
+        }
     }
 }
 
@@ -36,41 +83,39 @@ impl Layout for MasterStackLayout {
             return;
         }
 
-        if count == 1 {
-            ctx.windows[0].geometry = SurfaceGeometry {
-                position: Point::from((0, 0)),
-                size: ctx.output_size,
-            };
+        let output_w = ctx.output_size.w;
+        let output_h = ctx.output_size.h;
+
+        let master_count = self.master_count.min(count);
+        let stack_count = count - master_count;
+
+        if master_count == 0 {
+            Self::arrange_vertical_stack(&mut ctx.windows[..], 0, 0, output_w, output_h);
             return;
         }
 
-        let output_w = ctx.output_size.w;
-        let output_h = ctx.output_size.h;
+        if stack_count == 0 {
+            Self::arrange_vertical_stack(
+                &mut ctx.windows[..master_count],
+                0,
+                0,
+                output_w,
+                output_h,
+            );
+            return;
+        }
 
         let master_w = output_w * self.master_percent / 100;
         let stack_w = output_w - master_w;
 
-        ctx.windows[0].geometry = SurfaceGeometry {
-            position: Point::from((0, 0)),
-            size: Size::from((master_w, output_h)),
-        };
+        Self::arrange_vertical_stack(&mut ctx.windows[..master_count], 0, 0, master_w, output_h);
 
-        let stack_count = count - 1;
-        let stack_h = output_h / stack_count as i32;
-
-        for (index, window) in ctx.windows[1..].iter_mut().enumerate() {
-            let y = index as i32 * stack_h;
-
-            let height = if index == stack_count - 1 {
-                output_h - y
-            } else {
-                stack_h
-            };
-
-            window.geometry = SurfaceGeometry {
-                position: Point::from((master_w, y)),
-                size: Size::from((stack_w, height)),
-            };
-        }
+        Self::arrange_vertical_stack(
+            &mut ctx.windows[master_count..],
+            master_w,
+            0,
+            stack_w,
+            output_h,
+        );
     }
 }

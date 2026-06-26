@@ -47,6 +47,14 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .bind(Key::Shift | Key::L, Cmd::Layout(LayoutCmd::Grow))
         .bind(Key::Shift | Key::K, Cmd::Layout(LayoutCmd::FocusPrev))
         .bind(Key::Shift | Key::J, Cmd::Layout(LayoutCmd::FocusNext))
+        .bind(
+            Key::Shift | Key::I,
+            Cmd::Layout(LayoutCmd::IncreaseMasterCount),
+        )
+        .bind(
+            Key::Shift | Key::O,
+            Cmd::Layout(LayoutCmd::DecreaseMasterCount),
+        )
         .bind(Key::Ctrl | Key::K, Cmd::Layout(LayoutCmd::SendDown))
         .bind(Key::Ctrl | Key::J, Cmd::Layout(LayoutCmd::SendUp))
         .bind(Key::Ctrl | Key::Shift | Key::Q, Cmd::Exit(0))

@@ -26,6 +26,11 @@ pub trait Growable {
     fn grow(&mut self) {}
 }
 
-pub trait Layout: std::fmt::Debug + Shrinkable + Growable {
+pub trait MasterWindow {
+    fn increase_master_count(&mut self) {}
+    fn decrease_master_count(&mut self) {}
+}
+
+pub trait Layout: std::fmt::Debug + Shrinkable + Growable + MasterWindow {
     fn arrange(&mut self, ctx: &mut LayoutContext<'_>);
 }
