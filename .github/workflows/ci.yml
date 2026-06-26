@@ -34,9 +34,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-machete,cargo-audit
-      - run: cargo check --locked
-      - run: cargo check --no-default-features --locked
-      - run: cargo check --examples --locked
+      - run: cargo check --locked --all-targets
       - run: cargo machete
       - run: cargo audit --deny warnings
 
