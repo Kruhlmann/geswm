@@ -18,7 +18,7 @@ default = ["winit"]
 winit = ["dep:winit", "smithay/backend_winit", "smithay/renderer_gl"]
 
 [[example]]
-name = "simple-wm"
+name = "running-example"
 required-features = ["winit"]
 
 [profile.dev]
