@@ -38,8 +38,6 @@ codegen-units = 1
 panic = "abort"
 
 [dependencies]
-bitflags = "2.13.0"
-signal-hook = "0.3.18"
 smithay = { version = "0.7", default-features = false, features = [
     "wayland_frontend",
 ] }

@@ -41,7 +41,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = WinitBackend::new_gles_renderer()?
         .add_transformer(border_transformer)
         .set_background_color(RgbaColor::from_hex("#211317"));
-    let mut daemon = Daemon::new()?
+    Daemon::new()?
         .with_mouse()
         .with_backend(backend)
         .with_keyboard(keyboard_config)?
@@ -56,9 +56,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             KeyMod::Shift | Key::J,
             WmSessionCommand::Layout(LayoutCommand::FocusNext),
         )
-        .bind(KeyMod::Shift | Key::Q, WmSessionCommand::CloseFocused);
-
-    let DaemonExit::Requested(exit_code) = daemon.run_with_signal_handlers()?;
-    tracing::info!(exit_code, "server exited");
-    Ok(())
+        .bind(KeyMod::Shift | Key::Q, WmSessionCommand::CloseFocused)
+        .run();
 }

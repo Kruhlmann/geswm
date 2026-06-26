@@ -5,10 +5,7 @@ pub mod mouse;
 
 use std::{
     collections::HashMap,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::Arc,
     time::Instant,
 };
 
@@ -26,7 +23,7 @@ use crate::{
         mouse::{MouseHandler, NoMouse},
     },
     layout::{Layout, LayoutContext, LayoutWindow, NoLayout},
-    server::{event::BackendEventHandler, ServerState},
+    server::{ServerState, event::BackendEventHandler},
     surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
 };
 
@@ -77,38 +74,9 @@ where
     Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler + MouseHandler + FocusHandler,
     L: Layout,
 {
-    pub fn run(&mut self) -> DaemonExit {
-        self.run_with_signal_handlers()
-            .expect("signal handler initialization failed")
-    }
-
-    pub fn run_with_signal_handlers(&mut self) -> Result<DaemonExit, DaemonRunError> {
-        let shutdown_requested = Arc::new(AtomicBool::new(false));
-        signal_hook::flag::register(
-            signal_hook::consts::signal::SIGINT,
-            Arc::clone(&shutdown_requested),
-        )?;
-        signal_hook::flag::register(
-            signal_hook::consts::signal::SIGTERM,
-            Arc::clone(&shutdown_requested),
-        )?;
-
-        Ok(self.run_until(|| shutdown_requested.load(Ordering::Relaxed)))
-    }
-
-    pub fn run_until<F>(&mut self, mut should_exit: F) -> DaemonExit
-    where
-        F: FnMut() -> bool,
-    {
+    pub fn run(&mut self) -> ! {
         loop {
-            if should_exit() {
-                tracing::info!("shutdown requested");
-                return DaemonExit::Requested(0);
-            }
-
-            if let Some(exit) = self.handle_new_events() {
-                return exit;
-            }
+            self.handle_new_events();
             self.handle_client_connections();
             self.arrange_windows();
             self.synchronize_clients();
@@ -186,7 +154,7 @@ where
         self.server_state.layout_dirty = false;
     }
 
-    fn handle_new_events(&mut self) -> Option<DaemonExit> {
+    fn handle_new_events(&mut self) {
         let mut event_queue = Vec::new();
         match self
             .backend
@@ -195,25 +163,18 @@ where
             BackendPumpStatus::Continue => {}
             BackendPumpStatus::Exit(exit_code) => {
                 tracing::info!(?exit_code, "event loop exited");
-                return Some(DaemonExit::Requested(exit_code));
+                std::process::exit(exit_code);
             }
         };
 
         let mut commands: Vec<Option<WmSessionCommand>> = Vec::new();
         for event in &event_queue {
-            let command = self.handle_backend_event(event);
-            if let Some(WmSessionCommand::Exit(c)) = command {
-                tracing::info!(?c, "exit requested");
-                return Some(DaemonExit::Requested(c));
-            }
-            commands.push(command);
+            commands.push(self.handle_backend_event(event));
         }
 
         for command in commands.into_iter().flatten() {
             self.exec(&command);
         }
-
-        None
     }
 
     fn exec(&mut self, command: &WmSessionCommand) {
