@@ -119,7 +119,7 @@ where
             self.handle_client_connections();
             self.arrange_windows();
             self.synchronize_clients();
-            self.ensure_focus();
+            self.update_focus();
             self.backend.render(&self.server_state, &self.epoch);
         }
     }

@@ -10,20 +10,18 @@ use crate::{
 };
 
 pub trait FocusHandler {
-    fn ensure_focus(&mut self) {}
+    fn update_focus(&mut self) {}
 }
 
 impl<Mouse, Backend, L> FocusHandler for Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
-    fn ensure_focus(&mut self) {
+    fn update_focus(&mut self) {
         if self.focused_window_still_valid() {
             return;
         }
-
-        if let Some(surface) = self.next_focusable_window() {
-            self.focus_surface(surface);
-        } else {
-            self.clear_focus();
-        }
+        match self.next_focusable_window() {
+            Some(surface) => self.focus_surface(surface),
+            None => self.clear_focus(),
+        };
     }
 }
 
