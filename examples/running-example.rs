@@ -1,12 +1,4 @@
-use geswm::{
-    backend::{GesWmBackend, WinitBackend},
-    cmd::{LayoutCommand, WmSessionCommand},
-    config::{KeyboardConfiguration, RgbaColor},
-    daemon::Daemon,
-    input::Key,
-    layout::MasterStackLayout,
-    surface::SurfaceBorderTransformer,
-};
+use geswm::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 const DEFAULT_LOG_FILTER: &str = "info,backend_winit=warn,smithay=info,wayland_server=warn";
