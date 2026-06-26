@@ -40,7 +40,10 @@ where
             }
             WmSessionCommand::GoToWorkSpace(_) => todo!(),
             WmSessionCommand::MoveFocusedWindowToWorkSpace(_) => todo!(),
-            WmSessionCommand::Exit(..) => {}
+            WmSessionCommand::Exit(code) => {
+                tracing::info!(?code, "external exit request received");
+                std::process::exit(*code);
+            }
         };
     }
 }
