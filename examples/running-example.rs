@@ -25,14 +25,13 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         repeat_delay: 150,
         repeat_rate: 30,
     };
-    let border_transformer = SurfaceBorderTransformer::new(
-        5,
-        RgbaColor::from_hex("#009999ff"),
-        RgbaColor::from_hex("#999999ff"),
-    );
+    let border_transformer = SurfaceBorderTransformer::new()
+        .width(5)
+        .focused_color("#009999ff")
+        .unfocused_color("#999999ff");
     let backend = WinitBackend::new_gles_renderer()?
         .add_transformer(border_transformer)
-        .set_background_color(RgbaColor::from_hex("#211317"))
+        .set_background_color("#211317")
         .set_refresh_rate(60.0);
     Daemon::new()?
         .with_mouse()

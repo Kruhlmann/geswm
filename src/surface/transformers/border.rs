@@ -1,8 +1,11 @@
 use smithay::backend::renderer::{Color32F, Renderer};
 
-use crate::surface::{
-    ArrangeContext, RenderTransformContext, SurfaceLogicalRectangle, SurfacePhysicalRectangle,
-    SurfaceTransformer, WindowTransform,
+use crate::{
+    config::RgbaColor,
+    surface::{
+        ArrangeContext, RenderTransformContext, SurfaceLogicalRectangle, SurfacePhysicalRectangle,
+        SurfaceTransformer, WindowTransform,
+    },
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -12,16 +15,34 @@ pub struct SurfaceBorderTransformer {
     pub unfocused_color: Color32F,
 }
 
+impl Default for SurfaceBorderTransformer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SurfaceBorderTransformer {
-    pub fn new<C>(width: i32, focused_color: C, unfocused_color: C) -> Self
-    where
-        C: Into<Color32F>,
-    {
+    pub fn new() -> Self {
         Self {
-            width,
-            focused_color: focused_color.into(),
-            unfocused_color: unfocused_color.into(),
+            width: 2,
+            focused_color: RgbaColor::from_hex("#009999ff").into(),
+            unfocused_color: RgbaColor::from_hex("#999999ff").into(),
         }
+    }
+
+    pub fn focused_color(mut self, color: &str) -> Self {
+        self.focused_color = RgbaColor::from_hex(color).into();
+        self
+    }
+
+    pub fn unfocused_color(mut self, color: &str) -> Self {
+        self.unfocused_color = RgbaColor::from_hex(color).into();
+        self
+    }
+
+    pub fn width(mut self, width: i32) -> Self {
+        self.width = width;
+        self
     }
 }
 

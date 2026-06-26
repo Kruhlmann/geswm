@@ -17,6 +17,7 @@ use smithay::{
 
 use crate::{
     backend::{BackendEvent, BackendPumpStatus, GesWmBackend},
+    config::RgbaColor,
     output::{OutputDescription, OutputDiscovery},
     server::ServerState,
     surface::{
@@ -80,9 +81,8 @@ impl WinitBackend<GlesRenderer> {
         self
     }
 
-    pub fn set_background_color<C: Into<Color32F> + std::fmt::Display>(mut self, color: C) -> Self {
-        tracing::info!("setting background color to {}", color);
-        self.background_color = color.into();
+    pub fn set_background_color(mut self, color: &str) -> Self {
+        self.background_color = RgbaColor::from_hex(color).into();
         self
     }
 }
