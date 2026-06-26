@@ -1,4 +1,3 @@
-
 use smithay::{
     input::{Seat, SeatState},
     wayland::{
@@ -7,7 +6,7 @@ use smithay::{
         selection::data_device::DataDeviceState,
         shell::{
             wlr_layer::WlrLayerShellState,
-            xdg::{XdgShellState, decoration::XdgDecorationState},
+            xdg::{decoration::XdgDecorationState, XdgShellState},
         },
         shm::ShmState,
     },

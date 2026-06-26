@@ -1,9 +1,7 @@
-pub mod executor;
-
 #[derive(Debug, Clone)]
 pub enum LayoutCommand {
-    CycleUp,
-    CycleDown,
+    FocusNext,
+    FocusPrev,
     SendToTop,
     SendToBottom,
     SendUp,
@@ -23,6 +21,7 @@ pub enum WmSessionCommand {
     ConfirmCommand(String, Box<Self>),
     GoToWorkSpace(u16),
     MoveFocusedWindowToWorkSpace(u16),
+    Exit(i32),
 }
 
 impl From<Vec<&str>> for WmSessionCommand {
@@ -44,5 +43,41 @@ impl std::fmt::Display for WmSessionCommand {
             WmSessionCommand::Layout(layout) => write!(f, "Layout::{layout:?}"),
             _ => write!(f, "{:?}", self),
         }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CommandExecutionError {
+    #[error("spawn command failed {0}")]
+    SpawnError(std::io::Error),
+    #[error("spawn command had no command")]
+    NoCommand,
+}
+
+impl WmSessionCommand {
+    pub fn exec_spawn(
+        &self,
+        command_segments: &Vec<String>,
+        socket_name: &str,
+    ) -> Result<(), CommandExecutionError> {
+        let (command, args) = match command_segments.as_slice() {
+            [] => return Err(CommandExecutionError::NoCommand),
+            [c, a @ ..] => (c, a),
+        };
+        std::process::Command::new(command)
+            .args(args)
+            .env("WAYLAND_DISPLAY", socket_name)
+            .env("XDG_SESSION_TYPE", "wayland")
+            .env_remove("DISPLAY")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(CommandExecutionError::SpawnError)
+            .inspect(|child| tracing::info!(?command, id = child.id(), "spawned process"))?;
+        Ok(())
+    }
+
+    pub fn show_prompt(_prompt: &str) -> bool {
+        true
     }
 }

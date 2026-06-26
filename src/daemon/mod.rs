@@ -6,8 +6,8 @@ pub mod mouse;
 use std::{
     collections::HashMap,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
     time::Instant,
 };
@@ -15,12 +15,9 @@ use std::{
 use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 
 use crate::{
-    backend::{BackendEvent, BackendPumpStatus, GesWmBackend, InputEvent, NoBackend},
+    backend::{BackendPumpStatus, GesWmBackend, NoBackend},
     client::ClientState,
-    cmd::{
-        WmSessionCommand,
-        executor::{DaemonCommandExecutor, UserCommandExecutor},
-    },
+    cmd::{LayoutCommand, WmSessionCommand},
     config::KeyboardConfiguration,
     daemon::{
         error::{DaemonInitError, DaemonKeyboardInitError},
@@ -28,9 +25,8 @@ use crate::{
         keyboard::{KeyboardHandler, NoKeyboard},
         mouse::{MouseHandler, NoMouse},
     },
-    input::KeyBind,
     layout::{Layout, LayoutContext, LayoutWindow, NoLayout},
-    server::ServerState,
+    server::{event::BackendEventHandler, ServerState},
     surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
 };
 
@@ -39,11 +35,10 @@ pub struct Daemon<Keyboard, Mouse, Backend, L> {
     display: wayland_server::Display<ServerState>,
     epoch: Instant,
     clients: Vec<wayland_server::Client>,
-    executor: DaemonCommandExecutor,
     backend: Box<Backend>,
     keyboard: Keyboard,
     mouse: Mouse,
-    keybinds: HashMap<KeyBind, WmSessionCommand>,
+    keybinds: HashMap<u32, WmSessionCommand>,
     layout: L,
 }
 
@@ -62,14 +57,12 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
     pub fn new() -> Result<Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout>, DaemonInitError> {
         let display: wayland_server::Display<ServerState> = wayland_server::Display::new()?;
         let server_state = ServerState::from_display(&display)?;
-        let executor = DaemonCommandExecutor::new(server_state.socket_name().to_string());
 
         Ok(Self {
             server_state,
             display,
             epoch: Instant::now(),
             clients: vec![],
-            executor,
             backend: Box::new(()),
             keyboard: (),
             mouse: (),
@@ -119,7 +112,7 @@ where
             self.handle_client_connections();
             self.arrange_windows();
             self.synchronize_clients();
-            self.update_focus();
+            self.ensure_a_window_is_focused();
             self.backend.render(&self.server_state, &self.epoch);
         }
     }
@@ -208,48 +201,42 @@ where
 
         let mut commands: Vec<Option<WmSessionCommand>> = Vec::new();
         for event in &event_queue {
-            let command = match event {
-                BackendEvent::Resize { size, scale } => {
-                    tracing::info!("resized event: {size:?} scale: {scale:?}");
-                    None
-                }
-                BackendEvent::FocusGained => None,
-                BackendEvent::FocusLost => None,
-                BackendEvent::Input(input_event) => match input_event {
-                    InputEvent::Keyboard { time, key, state } => {
-                        self.on_keyboard_event(*time, key, state)
-                    }
-                    InputEvent::PointerAxis { time } => self.on_mouse_wheel_event(time),
-                    InputEvent::PointerButton {
-                        time,
-                        button_code,
-                        state,
-                    } => self.on_mouse_input_event(time, button_code, state),
-                    InputEvent::PointerMotionAbsolute { time, x, y } => {
-                        self.on_mouse_moved_event(time, x, y)
-                    }
-                    InputEvent::Unimplemented => None,
-                },
-                BackendEvent::Redraw => {
-                    tracing::info!("redraw event");
-                    None
-                }
-                BackendEvent::CloseRequested => {
-                    tracing::info!("close requested");
-                    return Some(DaemonExit::Requested(0));
-                }
-            };
+            let command = self.handle_backend_event(event);
+            if let Some(WmSessionCommand::Exit(c)) = command {
+                tracing::info!(?c, "exit requested");
+                return Some(DaemonExit::Requested(c));
+            }
             commands.push(command);
         }
 
         for command in commands.into_iter().flatten() {
-            self.executor
-                .execute(&command)
-                .inspect_err(|error| tracing::error!(?error, ?command, "user cmd execution"))
-                .ok();
+            self.exec(&command);
         }
 
         None
+    }
+
+    fn exec(&mut self, command: &WmSessionCommand) {
+        match command {
+            WmSessionCommand::Spawn(cmd) => {
+                command
+                    .exec_spawn(cmd, self.server_state.socket_name())
+                    .inspect_err(|error| tracing::error!(?error, "spawn failed"))
+                    .ok();
+            }
+            WmSessionCommand::Layout(LayoutCommand::FocusNext) => self.focus_next(),
+            WmSessionCommand::Layout(LayoutCommand::FocusPrev) => self.focus_prev(),
+            WmSessionCommand::Layout(_layout_command) => todo!(),
+            WmSessionCommand::CloseFocused => todo!(),
+            WmSessionCommand::ConfirmCommand(prompt, next_command) => {
+                if WmSessionCommand::show_prompt(prompt) {
+                    self.exec(next_command);
+                }
+            }
+            WmSessionCommand::GoToWorkSpace(_) => todo!(),
+            WmSessionCommand::MoveFocusedWindowToWorkSpace(_) => todo!(),
+            WmSessionCommand::Exit(..) => {}
+        };
     }
 
     fn handle_client_connections(&mut self) {
@@ -282,7 +269,6 @@ impl<Keyboard, Mouse, L> Daemon<Keyboard, Mouse, NoBackend, L> {
             epoch: self.epoch,
             clients: self.clients,
             keyboard: self.keyboard,
-            executor: self.executor,
             mouse: self.mouse,
             layout: self.layout,
             keybinds: self.keybinds,
@@ -301,7 +287,6 @@ impl<Keyboard, Backend, L> Daemon<Keyboard, NoMouse, Backend, L> {
             epoch: self.epoch,
             clients: self.clients,
             keyboard: self.keyboard,
-            executor: self.executor,
             backend: self.backend,
             layout: self.layout,
             keybinds: self.keybinds,
@@ -334,7 +319,6 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
             backend: self.backend,
             layout: self.layout,
             keybinds: self.keybinds,
-            executor: self.executor,
             keyboard,
         })
     }
@@ -351,7 +335,6 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
             epoch: self.epoch,
             clients: self.clients,
             keyboard: self.keyboard,
-            executor: self.executor,
             mouse: self.mouse,
             backend: self.backend,
             keybinds: self.keybinds,
@@ -363,19 +346,19 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
 impl<Mouse, Backend, L> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L> {
     pub fn bind<C>(
         mut self,
-        keybind: KeyBind,
+        key: u32,
         command: C,
     ) -> Daemon<KeyboardHandle<ServerState>, Mouse, Backend, L>
     where
         C: Into<WmSessionCommand>,
     {
         let command = command.into();
-        if let std::collections::hash_map::Entry::Occupied(..) = self.keybinds.entry(keybind) {
-            tracing::warn!("redefining {keybind}: {command}");
+        if let std::collections::hash_map::Entry::Occupied(..) = self.keybinds.entry(key) {
+            tracing::warn!("redefining {key}: {command}");
         } else {
-            tracing::info!("binding {keybind} to command: {command}");
+            tracing::info!("binding {key} to command: {command}");
         }
-        self.keybinds.insert(keybind, command);
+        self.keybinds.insert(key, command);
         self
     }
 }

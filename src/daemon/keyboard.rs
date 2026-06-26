@@ -4,7 +4,7 @@ use smithay::{
     utils::SERIAL_COUNTER,
 };
 
-use crate::{cmd::WmSessionCommand, daemon::Daemon, input::KeyBind, server::ServerState};
+use crate::{cmd::WmSessionCommand, daemon::Daemon, input::Key, server::ServerState};
 
 pub type NoKeyboard = ();
 
@@ -35,8 +35,8 @@ impl<Mouse, Backend, L> KeyboardHandler for Daemon<KeyboardHandle<ServerState>, 
             (time / 1000) as u32,
             |_, modifiers, keysym| match state {
                 KeyState::Pressed => {
-                    let keybind = KeyBind::from_pair(modifiers, keysym);
-                    match self.keybinds.get(&keybind) {
+                    let key = Key::with_modifiers(keysym.raw_code().raw(), modifiers);
+                    match self.keybinds.get(&key) {
                         Some(command) => {
                             cmd_to_return = Some(command.clone());
                             FilterResult::Intercept(())

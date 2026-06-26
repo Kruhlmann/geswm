@@ -1,9 +1,9 @@
 use geswm::{
     backend::{GesWmBackend, WinitBackend},
-    cmd::WmSessionCommand,
+    cmd::{LayoutCommand, WmSessionCommand},
     config::{KeyboardConfiguration, RgbaColor},
     daemon::{Daemon, DaemonExit},
-    input::XkbKeyCode,
+    input::{Key, KeyMod},
     layout::MasterStackLayout,
     surface::SurfaceBorderTransformer,
 };
@@ -46,9 +46,17 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_backend(backend)
         .with_keyboard(keyboard_config)?
         .with_initial_layout(MasterStackLayout::default())
-        .bind(XkbKeyCode::Return.with_shift(), vec!["alacritty"])
-        .bind(XkbKeyCode::D.with_shift(), vec!["rofi", "-show", "drun"])
-        .bind(XkbKeyCode::Q.with_shift(), WmSessionCommand::CloseFocused);
+        .bind(KeyMod::Shift | Key::Return, vec!["alacritty"])
+        .bind(KeyMod::Shift | Key::D, vec!["rofi", "-show", "drun"])
+        .bind(
+            KeyMod::Shift | Key::K,
+            WmSessionCommand::Layout(LayoutCommand::FocusPrev),
+        )
+        .bind(
+            KeyMod::Shift | Key::J,
+            WmSessionCommand::Layout(LayoutCommand::FocusNext),
+        )
+        .bind(KeyMod::Shift | Key::Q, WmSessionCommand::CloseFocused);
 
     let DaemonExit::Requested(exit_code) = daemon.run_with_signal_handlers()?;
     tracing::info!(exit_code, "server exited");

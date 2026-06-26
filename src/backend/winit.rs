@@ -2,14 +2,13 @@ use std::time::Instant;
 
 use smithay::{
     backend::{
-        SwapBuffersError,
         egl::EGLSurface,
         renderer::{
-            Bind, Color32F, Frame, ImportDmaWl, ImportMemWl,
             element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer,
-            utils::draw_render_elements,
+            utils::draw_render_elements, Bind, Color32F, Frame, ImportDmaWl, ImportMemWl,
         },
         winit::{self, Error as WinitError, WinitEventLoop, WinitGraphicsBackend},
+        SwapBuffersError,
     },
     utils::{Rectangle, Transform},
     wayland::compositor::{SurfaceAttributes, TraversalAction},
