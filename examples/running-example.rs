@@ -37,7 +37,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_mouse()
         .with_backend(backend)
         .with_keyboard(keyboard_config)?
-        .with_layout(MasterStackLayout::default())
+        .with_layout(MasterStackLayout::new(50))
         .with_layout(MasterStackLayout::new(10))
         .startup(vec!["wbg", "-s", "examples/bg.png"])
         .bind(Key::Shift | Key::Return, "alacritty")

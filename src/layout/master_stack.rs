@@ -16,12 +16,6 @@ impl MasterStackLayout {
     }
 }
 
-impl Default for MasterStackLayout {
-    fn default() -> Self {
-        Self { master_percent: 50 }
-    }
-}
-
 impl Layout for MasterStackLayout {
     fn arrange(&mut self, ctx: &mut LayoutContext<'_>) {
         let count = ctx.windows.len();
