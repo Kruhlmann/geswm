@@ -28,7 +28,7 @@ use crate::{
         keyboard::{KeyboardHandler, NoKeyboard},
         mouse::{MouseHandler, NoMouse},
     },
-    input::{KeyBind, UnixSocket},
+    input::KeyBind,
     layout::{Layout, LayoutContext, LayoutWindow, NoLayout},
     server::ServerState,
     surface::{ArrangeContext, SurfaceLogicalRectangle, SurfaceLogicalSize},
@@ -36,7 +36,6 @@ use crate::{
 
 pub struct Daemon<Keyboard, Mouse, Backend, L> {
     server_state: ServerState,
-    comms_socket: UnixSocket,
     display: wayland_server::Display<ServerState>,
     epoch: Instant,
     clients: Vec<wayland_server::Client>,
@@ -64,11 +63,9 @@ impl Daemon<NoKeyboard, NoMouse, NoBackend, NoLayout> {
         let display: wayland_server::Display<ServerState> = wayland_server::Display::new()?;
         let server_state = ServerState::from_display(&display)?;
         let executor = DaemonCommandExecutor::new(server_state.socket_name().to_string());
-        let comms_socket = UnixSocket::try_autocreate("geswm")?;
 
         Ok(Self {
             server_state,
-            comms_socket,
             display,
             epoch: Instant::now(),
             clients: vec![],
@@ -281,7 +278,6 @@ impl<Keyboard, Mouse, L> Daemon<Keyboard, Mouse, NoBackend, L> {
     {
         Daemon {
             server_state: self.server_state,
-            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,
@@ -301,7 +297,6 @@ impl<Keyboard, Backend, L> Daemon<Keyboard, NoMouse, Backend, L> {
         let mouse = self.server_state.seat.add_pointer();
         Daemon {
             server_state: self.server_state,
-            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,
@@ -332,7 +327,6 @@ impl<Mouse, Backend, L> Daemon<NoKeyboard, Mouse, Backend, L> {
 
         Ok(Daemon {
             server_state: self.server_state,
-            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,
@@ -353,7 +347,6 @@ impl<Keyboard, Mouse, Backend> Daemon<Keyboard, Mouse, Backend, NoLayout> {
     {
         Daemon {
             server_state: self.server_state,
-            comms_socket: self.comms_socket,
             display: self.display,
             epoch: self.epoch,
             clients: self.clients,

@@ -1,10 +1,6 @@
 use smithay::{
     input::keyboard::KeyboardHandle,
     utils::SERIAL_COUNTER,
-    wayland::{
-        compositor,
-        shell::wlr_layer::{KeyboardInteractivity, LayerSurfaceCachedState},
-    },
 };
 use wayland_server::protocol::wl_surface::WlSurface;
 

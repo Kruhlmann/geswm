@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use smithay::{
     input::{Seat, SeatState},
