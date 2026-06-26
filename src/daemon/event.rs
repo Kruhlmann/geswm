@@ -1,7 +1,10 @@
 use crate::{
     backend::{BackendPumpStatus, GesWmBackend},
     cmd::WmSessionCommand,
-    daemon::{Daemon, focus::FocusHandler, keyboard::KeyboardHandler, mouse::MouseHandler},
+    daemon::{
+        Daemon, executor::CommandExecutor, focus::FocusHandler, keyboard::KeyboardHandler,
+        mouse::MouseHandler,
+    },
     layout::Layout,
     server::{ServerState, event::BackendEventHandler},
 };
@@ -13,7 +16,8 @@ pub trait EventProcessor {
 impl<Keyboard, Mouse, Backend, L> EventProcessor for Daemon<Keyboard, Mouse, Backend, L>
 where
     Backend: GesWmBackend<ServerState>,
-    Daemon<Keyboard, Mouse, Backend, L>: KeyboardHandler + MouseHandler + FocusHandler,
+    Daemon<Keyboard, Mouse, Backend, L>:
+        KeyboardHandler + MouseHandler + FocusHandler + CommandExecutor<WmSessionCommand>,
     L: Layout,
 {
     fn handle_new_events(&mut self) {
@@ -35,7 +39,7 @@ where
         }
 
         for command in commands.into_iter().flatten() {
-            self.exec(&command);
+            self.execute(&command);
         }
     }
 }

@@ -71,6 +71,23 @@ impl ServerState {
         })
     }
 
+    pub fn prune(&mut self) {
+        let mut removed_surfaces = Vec::new();
+        self.windows.retain(|window| {
+            if window.is_alive() {
+                true
+            } else {
+                removed_surfaces.push(window.surface.clone());
+                false
+            }
+        });
+
+        if !removed_surfaces.is_empty() {
+            tracing::debug!(?removed_surfaces, "pruned dead windows");
+            self.mark_layout_dirty();
+        }
+    }
+
     pub fn socket_name(&self) -> &str {
         self.socket.display_name()
     }

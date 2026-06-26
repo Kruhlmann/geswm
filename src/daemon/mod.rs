@@ -1,5 +1,6 @@
 pub mod error;
 pub mod event;
+pub mod executor;
 pub mod focus;
 pub mod keyboard;
 pub mod layout;
@@ -12,7 +13,7 @@ use smithay::input::{keyboard::KeyboardHandle, pointer::PointerHandle};
 use crate::{
     backend::{GesWmBackend, NoBackend},
     client::ClientState,
-    cmd::{LayoutCommand, WmSessionCommand},
+    cmd::WmSessionCommand,
     config::KeyboardConfiguration,
     daemon::{
         error::{DaemonInitError, DaemonKeyboardInitError},
@@ -76,7 +77,7 @@ where
 {
     pub fn run(&mut self) -> ! {
         loop {
-            self.prune_dead_windows();
+            self.server_state.prune();
             self.handle_new_events();
             self.handle_client_connections();
             self.arrange_windows();
@@ -84,56 +85,6 @@ where
             self.ensure_a_window_is_focused();
             self.backend.render(&self.server_state, &self.epoch);
         }
-    }
-
-    fn prune_dead_windows(&mut self) {
-        let mut removed_surfaces = Vec::new();
-        self.server_state.windows.retain(|window| {
-            if window.is_alive() {
-                true
-            } else {
-                removed_surfaces.push(window.surface.clone());
-                false
-            }
-        });
-
-        for surface in &removed_surfaces {
-            if let Some(focused_surface) = &self.server_state.focused_window
-                && focused_surface == surface
-            {
-                self.clear_focus();
-            }
-        }
-
-        if !removed_surfaces.is_empty() {
-            tracing::debug!(?removed_surfaces, "pruned dead windows");
-            self.server_state.mark_layout_dirty();
-        }
-    }
-
-    fn exec(&mut self, command: &WmSessionCommand) {
-        match command {
-            WmSessionCommand::Spawn(cmd) => {
-                command
-                    .exec_spawn(cmd, self.server_state.socket_name())
-                    .inspect_err(|error| tracing::error!(?error, "spawn failed"))
-                    .ok();
-            }
-            WmSessionCommand::Layout(LayoutCommand::FocusNext) => self.focus_next(),
-            WmSessionCommand::Layout(LayoutCommand::FocusPrev) => self.focus_prev(),
-            WmSessionCommand::Layout(LayoutCommand::SendDown) => self.move_focused_window_down(),
-            WmSessionCommand::Layout(LayoutCommand::SendUp) => self.move_focused_window_up(),
-            WmSessionCommand::Layout(_layout_command) => todo!(),
-            WmSessionCommand::CloseFocused => self.close_focused_window(),
-            WmSessionCommand::ConfirmCommand(prompt, next_command) => {
-                if WmSessionCommand::show_prompt(prompt) {
-                    self.exec(next_command);
-                }
-            }
-            WmSessionCommand::GoToWorkSpace(_) => todo!(),
-            WmSessionCommand::MoveFocusedWindowToWorkSpace(_) => todo!(),
-            WmSessionCommand::Exit(..) => {}
-        };
     }
 
     pub fn close_focused_window(&mut self) {
