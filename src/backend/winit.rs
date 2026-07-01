@@ -12,7 +12,10 @@ use smithay::{
         winit::{self, Error as WinitError, WinitEventLoop, WinitGraphicsBackend},
     },
     utils::{Rectangle, Transform},
-    wayland::compositor::{SurfaceAttributes, TraversalAction},
+    wayland::{
+        compositor::{SurfaceAttributes, TraversalAction},
+        shell::wlr_layer::{Layer, LayerSurfaceCachedState},
+    },
 };
 
 use crate::{
@@ -138,66 +141,20 @@ where
                 elements: Vec<WaylandSurfaceRenderElement<Renderer>>,
             }
 
-            let mut render_items = state
-                .xdg_shell_state
-                .toplevel_surfaces()
-                .iter()
-                .map(|surface| {
-                    let wl_surface = surface.wl_surface().clone();
-
-                    let geometry = state
-                        .geometry_for_surface(surface.wl_surface())
-                        .unwrap_or_else(|| SurfaceGeometry {
-                            position: (0, 0).into(),
-                            size: (1, 1).into(),
-                        });
-
-                    let focused = state.is_focused(surface.wl_surface());
-
-                    let arrange_ctx = ArrangeContext {
-                        focused,
-                        fullscreen: false,
-                        floating: false,
-                        output_rect,
-                    };
-
-                    let arranged = self
-                        .surface_transform_pipeline
-                        .begin(geometry, arrange_ctx)
-                        .arrange();
-
-                    let transform = arranged.transform();
-
-                    let render_position = SurfacePhysicalPosition::from((
-                        transform.client_rect.loc.x,
-                        transform.client_rect.loc.y,
-                    ));
-
-                    let elements: Vec<WaylandSurfaceRenderElement<Renderer>> =
-    smithay::backend::renderer::element::surface::render_elements_from_surface_tree(
-        renderer,
-        surface.wl_surface(),
-        render_position,
-        1.0,
-        1.0,
-        smithay::backend::renderer::element::Kind::Unspecified,
-    );
-
-                    RenderItem {
-                        surface: wl_surface,
-                        geometry,
-                        arrange_ctx,
-                        elements,
-                    }
+            let layer_of = |s: &smithay::wayland::shell::wlr_layer::LayerSurface| -> Layer {
+                smithay::wayland::compositor::with_states(s.wl_surface(), |states| {
+                    states
+                        .cached_state
+                        .get::<LayerSurfaceCachedState>()
+                        .current()
+                        .layer
                 })
-                .collect::<Vec<_>>();
+            };
 
-            render_items.extend(
-                state
-                    .layer_shell_state
-                    .layer_surfaces()
-                    .filter(|surface| surface.alive())
-                    .map(|surface| {
+            // Layer-shell surfaces rendered below regular windows (Background, Bottom).
+            let mut render_items: Vec<RenderItem<Renderer>> = {
+                let mut make_layer_render_item =
+                    |surface: &smithay::wayland::shell::wlr_layer::LayerSurface| {
                         let wl_surface = surface.wl_surface().clone();
                         let layer_state = surface.current_state();
                         let layer_size = layer_state.size.unwrap_or_else(|| {
@@ -242,8 +199,131 @@ where
                             arrange_ctx,
                             elements,
                         }
+                    };
+
+                state
+                    .layer_shell_state
+                    .layer_surfaces()
+                    .filter(|s| {
+                        s.alive() && matches!(layer_of(s), Layer::Background | Layer::Bottom)
+                    })
+                    .map(|s| make_layer_render_item(&s))
+                    .collect()
+            };
+
+            // Regular XDG-shell windows in the middle.
+            render_items.extend(
+                state
+                    .xdg_shell_state
+                    .toplevel_surfaces()
+                    .iter()
+                    .map(|surface| {
+                        let wl_surface = surface.wl_surface().clone();
+
+                        let geometry = state
+                            .geometry_for_surface(surface.wl_surface())
+                            .unwrap_or_else(|| SurfaceGeometry {
+                                position: (0, 0).into(),
+                                size: (1, 1).into(),
+                            });
+
+                        let focused = state.is_focused(surface.wl_surface());
+
+                        let arrange_ctx = ArrangeContext {
+                            focused,
+                            fullscreen: false,
+                            floating: false,
+                            output_rect,
+                        };
+
+                        let arranged = self
+                            .surface_transform_pipeline
+                            .begin(geometry, arrange_ctx)
+                            .arrange();
+
+                        let transform = arranged.transform();
+
+                        let render_position = SurfacePhysicalPosition::from((
+                            transform.client_rect.loc.x,
+                            transform.client_rect.loc.y,
+                        ));
+
+                        let elements: Vec<WaylandSurfaceRenderElement<Renderer>> =
+                            smithay::backend::renderer::element::surface::render_elements_from_surface_tree(
+                                renderer,
+                                surface.wl_surface(),
+                                render_position,
+                                1.0,
+                                1.0,
+                                smithay::backend::renderer::element::Kind::Unspecified,
+                            );
+
+                        RenderItem {
+                            surface: wl_surface,
+                            geometry,
+                            arrange_ctx,
+                            elements,
+                        }
                     }),
             );
+
+            // Layer-shell surfaces rendered above regular windows (Top, Overlay).
+            {
+                let mut make_layer_render_item =
+                    |surface: &smithay::wayland::shell::wlr_layer::LayerSurface| {
+                        let wl_surface = surface.wl_surface().clone();
+                        let layer_state = surface.current_state();
+                        let layer_size = layer_state
+                            .size
+                            .unwrap_or_else(|| SurfacePhysicalSize::from((640, 480)).to_logical(1));
+
+                        let geometry = SurfaceGeometry {
+                            position: (
+                                ((output_size.w - layer_size.w).max(0)) / 2,
+                                ((output_size.h - layer_size.h).max(0)) / 2,
+                            )
+                                .into(),
+                            size: layer_size,
+                        };
+
+                        let arrange_ctx = ArrangeContext {
+                            focused: state.is_focused(surface.wl_surface()),
+                            fullscreen: false,
+                            floating: true,
+                            output_rect,
+                        };
+
+                        let render_position = SurfacePhysicalPosition::from((
+                            geometry.position.x,
+                            geometry.position.y,
+                        ));
+
+                        let elements: Vec<WaylandSurfaceRenderElement<Renderer>> =
+                            smithay::backend::renderer::element::surface::render_elements_from_surface_tree(
+                                renderer,
+                                surface.wl_surface(),
+                                render_position,
+                                1.0,
+                                1.0,
+                                smithay::backend::renderer::element::Kind::Unspecified,
+                            );
+
+                        RenderItem {
+                            surface: wl_surface,
+                            geometry,
+                            arrange_ctx,
+                            elements,
+                        }
+                    };
+
+                render_items.extend(
+                    state
+                        .layer_shell_state
+                        .layer_surfaces()
+                        .filter(|s| s.alive() && matches!(layer_of(s), Layer::Top | Layer::Overlay))
+                        .map(|s| make_layer_render_item(&s)),
+                );
+            }
 
             let mut frame = renderer
                 .render(&mut framebuffer, size, Transform::Flipped180)
