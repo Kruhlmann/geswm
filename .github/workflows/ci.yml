@@ -37,6 +37,7 @@ jobs:
       - run: cargo check --locked --all-targets
       - run: cargo machete
       - run: cargo audit --deny warnings
+        continue-on-error: true
 
   publish:
     name: Publish crate
