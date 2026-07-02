@@ -40,6 +40,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_layout(MasterStackLayout::new(50))
         .with_layout(MasterStackLayout::new(10))
         .startup(vec!["wbg", "-s", "examples/bg.png"])
+        .startup("mako")
         .bind(Key::Shift | Key::Return, "alacritty")
         .bind(Key::Shift | Key::D, vec!["rofi", "-show", "drun"])
         .bind(Key::Shift | Key::Tab, Cmd::Layout(LayoutCmd::CycleLayout))
