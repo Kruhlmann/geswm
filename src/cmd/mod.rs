@@ -8,8 +8,8 @@ pub enum LayoutCmd {
     SendDown,
     Shrink,
     Grow,
-    IncreaseMasterCount,
-    DecreaseMasterCount,
+    IncrementMaster,
+    DecrementMaster,
     CycleLayout,
 }
 

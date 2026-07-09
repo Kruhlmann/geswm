@@ -62,8 +62,8 @@ where
             LayoutCmd::CycleLayout => self.cycle_layout(),
             LayoutCmd::Grow => self.get_active_layout().grow(),
             LayoutCmd::Shrink => self.get_active_layout().shrink(),
-            LayoutCmd::IncreaseMasterCount => self.get_active_layout().increase_master_count(),
-            LayoutCmd::DecreaseMasterCount => self.get_active_layout().decrease_master_count(),
+            LayoutCmd::IncrementMaster => self.get_active_layout().increase_master_count(),
+            LayoutCmd::DecrementMaster => self.get_active_layout().decrease_master_count(),
             _ => todo!(),
         };
     }
